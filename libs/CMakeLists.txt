@@ -52,4 +52,5 @@ target_link_libraries(academy_libs INTERFACE
     fmt
 )
 target_include_directories(academy_libs INTERFACE tracy/public)
+target_include_directories(academy_libs INTERFACE entt/src)
 target_include_directories(academy_libs INTERFACE .)

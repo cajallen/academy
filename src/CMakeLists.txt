@@ -10,10 +10,11 @@ add_library(academy_src
 	editor/gui.cpp
     editor/pose_widget.cpp
     editor/widget_system.cpp
+    editor/asset_editor.cpp
     game/input.cpp
 	game/file_cache.cpp
 	game/game_file.cpp
-)
+ "game/game_scene.cpp")
 
 target_include_directories(academy_src PUBLIC .)
 target_link_libraries(academy_src PUBLIC 

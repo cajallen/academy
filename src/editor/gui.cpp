@@ -109,11 +109,11 @@ void GUI::update() {
     }
     if (*(p_open = window_open("console")))
         Console::window(p_open);
-    for (EditorScene* scene : EditorScenes::values()) {
+    for (auto& scene : EditorScenes::values()) {
         if (*(p_open = window_open(scene->name + " info")))
             scene->settings_window(p_open);
     }
-    for (EditorScene* scene : EditorScenes::values()) {
+    for (auto& scene : EditorScenes::values()) {
         if (*(p_open = window_open(scene->name + " output")))
             scene->output_window(p_open);
     }

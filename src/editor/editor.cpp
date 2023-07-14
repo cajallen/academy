@@ -6,8 +6,9 @@
 #include "editor/console.hpp"
 #include "editor/editor_scene.hpp"
 #include "game/input.hpp"
-
 #include "game/game_scene.hpp"
+
+#include "editor/asset_editor.hpp"
 
 
 namespace fs = std::filesystem;
@@ -15,6 +16,8 @@ namespace fs = std::filesystem;
 namespace spellbook {
 
 Editor editor;
+
+ADD_EDITOR_SCENE(AssetEditor);
 
 void Editor::startup() {
     external_resource_folder = (fs::current_path() / "external_resources").string();
@@ -25,7 +28,7 @@ void Editor::startup() {
     renderer.setup();
     Input::setup();
 
-    for (auto editor_scene : EditorScenes::values()) {
+    for (auto& editor_scene : EditorScenes::values()) {
         editor_scene->setup();
     }
     
@@ -43,7 +46,7 @@ void Editor::step(bool skip_input) {
         Input::update();
     renderer.update();
     gui.update();
-    for (auto editor_scene : EditorScenes::values()) {
+    for (auto& editor_scene : EditorScenes::values()) {
         editor_scene->update();
     }
     renderer.render();
@@ -52,7 +55,7 @@ void Editor::step(bool skip_input) {
 
 void Editor::shutdown() {
     gui.shutdown();
-    for (auto editor_scene : EditorScenes::values()) {
+    for (auto& editor_scene : EditorScenes::values()) {
         editor_scene->shutdown();
     }
     renderer.cleanup();
