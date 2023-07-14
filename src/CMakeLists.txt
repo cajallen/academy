@@ -14,7 +14,9 @@ add_library(academy_src
     game/input.cpp
 	game/file_cache.cpp
 	game/game_file.cpp
- "game/game_scene.cpp")
+    game/game_scene.cpp
+    game/frame_timer.cpp
+)
 
 target_include_directories(academy_src PUBLIC .)
 target_link_libraries(academy_src PUBLIC 

@@ -11,7 +11,7 @@ void AssetEditor::setup() {
     EditorScene::setup();
     scene->render_scene.scene_data.ambient = Color(palette::white, 0.20f);
     
-    fs::path asset_editor_file = fs::path(editor.user_folder) / ("asset_editor" + extension(FileType_General));
+    fs::path asset_editor_file = fs::path(get_editor().user_folder) / ("asset_editor" + extension(FileType_General));
     
     json j = fs::exists(asset_editor_file) ? parse_file(asset_editor_file.string()) : json{};
     if (j.contains("tab"))
@@ -21,7 +21,7 @@ void AssetEditor::setup() {
 void AssetEditor::shutdown() {
     EditorScene::shutdown();
 
-    fs::path asset_editor_file = fs::path(editor.user_folder) / ("asset_editor" + extension(FileType_General));
+    fs::path asset_editor_file = fs::path(get_editor().user_folder) / ("asset_editor" + extension(FileType_General));
     fs::create_directories(asset_editor_file.parent_path());
     
     auto j = json();
@@ -30,8 +30,6 @@ void AssetEditor::shutdown() {
 }
 
 void AssetEditor::update() {
-    AssetEditor::shutdown();
-
     if (Input::mouse_click[GLFW_MOUSE_BUTTON_LEFT]) {
         scene->render_scene.query = v2i(Input::mouse_pos) - scene->render_scene.viewport.start;
     }

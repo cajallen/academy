@@ -11,7 +11,6 @@
 #include "renderer/draw_functions.hpp"
 #include "renderer/render_scene.hpp"
 #include "renderer/assets/mesh_asset.hpp"
-#include "editor/editor.hpp"
 #include "game/game_file.hpp"
 #include "game/input.hpp"
 #include "game/game_scene.hpp"
@@ -25,13 +24,13 @@ void setup_emitter() {
         {
             vuk::PipelineBaseCreateInfo pci;
             pci.add_glsl(get_contents("shaders/particle_emitter.comp"), "shaders/particle_emitter.comp");
-            editor.renderer.context->create_named_pipeline("emitter", pci);
+            get_renderer().context->create_named_pipeline("emitter", pci);
         }
         {
             vuk::PipelineBaseCreateInfo pci;
             pci.add_glsl(get_contents("shaders/particle.vert"), "shaders/particle.vert");
             pci.add_glsl(get_contents("shaders/textured_3d.frag"), "shaders/textured_3d.frag");
-            editor.renderer.context->create_named_pipeline("particle", pci);
+            get_renderer().context->create_named_pipeline("particle", pci);
         }
 
         auto cube_mesh = generate_cube(v3(0.0f), v3(1.0f));
@@ -49,8 +48,8 @@ EmitterGPU& instance_emitter(RenderScene& scene, const EmitterCPU& emitter_cpu) 
     
     EmitterGPU emitter;
     uint64 mat_id = hash_data(emitter_cpu.material.data(), emitter_cpu.material.size());
-    assert_else(editor.renderer.material_cache.contains(mat_id));
-    editor.renderer.material_cache[mat_id].pipeline = editor.renderer.context->get_named_pipeline("particle");
+    assert_else(get_gpu_asset_cache().materials.contains(mat_id));
+    get_gpu_asset_cache().materials[mat_id].pipeline = get_renderer().context->get_named_pipeline("particle");
     emitter.update_from_cpu(emitter_cpu);
     
     return *scene.emitters.emplace(std::move(emitter));
@@ -90,8 +89,8 @@ void EmitterGPU::update_from_cpu(const EmitterCPU& new_emitter) {
 
     mesh = hash_view(new_emitter.mesh);
     material = hash_view(new_emitter.material);
-    editor.renderer.file_path_cache[mesh] = new_emitter.mesh;
-    editor.renderer.file_path_cache[material] = new_emitter.material;
+    get_gpu_asset_cache().paths[mesh] = new_emitter.mesh;
+    get_gpu_asset_cache().paths[material] = new_emitter.material;
 
     bool upload_color = false, upload_size = false;
     if (emitter_cpu.color1_start != new_emitter.color1_start ||
@@ -140,8 +139,8 @@ void EmitterGPU::update_color() {
     }
 
     uint64 tex_id = hash_view(color_texture.file_path);
-    if (editor.renderer.texture_cache.contains(tex_id))
-        editor.renderer.texture_cache.erase(tex_id);
+    if (get_gpu_asset_cache().textures.contains(tex_id))
+        get_gpu_asset_cache().textures.erase(tex_id);
     upload_texture(color_texture);
     color = {color_texture.file_path, Sampler().address(Address_Clamp)};
 }
@@ -151,9 +150,9 @@ void EmitterGPU::update_size() {
 
     vector<uint8> bytes;
     bytes.resize(settings.max_particles * sizeof(v4)*4 + 4);
-    auto [buf, fut] = vuk::create_buffer(*editor.renderer.global_allocator, vuk::MemoryUsage::eGPUonly, vuk::DomainFlagBits::eTransferOnTransfer, std::span(bytes));
+    auto [buf, fut] = vuk::create_buffer(*get_renderer().global_allocator, vuk::MemoryUsage::eGPUonly, vuk::DomainFlagBits::eTransferOnTransfer, std::span(bytes));
     particles_buffer = std::move(buf);
-    editor.renderer.enqueue_setup(std::move(fut));
+    get_renderer().enqueue_setup(std::move(fut));
 }
 
 bool inspect(GameScene* scene, EmitterCPU* emitter) {
@@ -210,8 +209,8 @@ void update_emitter(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer) {
 }
 
 void render_particles(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer) {
-    MeshGPU* mesh = editor.renderer.get_mesh(emitter.mesh);
-    MaterialGPU* material = editor.renderer.get_material(emitter.material);
+    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(emitter.mesh);
+    MaterialGPU* material = get_gpu_asset_cache().get_material(emitter.material);
 
     if (mesh == nullptr || material == nullptr) {
         return;
@@ -226,7 +225,7 @@ void render_particles(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer) {
         .bind_graphics_pipeline(material->pipeline);
 
     uint64 tex_id = hash_view(emitter.color.texture);
-    TextureGPU& tex = editor.renderer.texture_cache[tex_id];
+    TextureGPU& tex = get_gpu_asset_cache().textures[tex_id];
     command_buffer.bind_image(0, SPARE_BINDING_1, tex.value.view.get()).bind_sampler(0, SPARE_BINDING_1, emitter.color.sampler.get());
     material->bind_parameters(command_buffer);
     material->bind_textures(command_buffer);
@@ -236,8 +235,8 @@ void render_particles(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer) {
 void upload_dependencies(EmitterGPU& renderable) {
     if (renderable.mesh == 0 || renderable.material == 0)
         return;
-    editor.renderer.get_mesh_or_upload(renderable.mesh);
-    editor.renderer.get_material_or_upload(renderable.material);
+    get_gpu_asset_cache().get_mesh_or_upload(renderable.mesh);
+    get_gpu_asset_cache().get_material_or_upload(renderable.material);
 }
 
 void EmitterCPU::set_velocity_direction(v3 dir) {

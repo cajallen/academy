@@ -18,7 +18,6 @@
 #include "renderer/assets/mesh_asset.hpp"
 #include "renderer/assets/material.hpp"
 #include "renderer/assets/texture.hpp"
-#include "editor/editor.hpp"
 #include "editor/pose_widget.hpp"
 #include "game/input.hpp"
 
@@ -37,11 +36,11 @@ void RenderScene::setup(vuk::Allocator& allocator) {
 }
 
 void RenderScene::image(v2i size) {
-    viewport.start = (v2i) ImGui::GetWindowPos() + (v2i) ImGui::GetCursorPos();
+    viewport.start = v2i(ImGui::GetWindowPos()) + v2i(ImGui::GetCursorPos());
     update_size(math::max(size, v2i(2, 2)));
 
     auto si = vuk::make_sampled_image(render_target.view.get(), Sampler().get());
-    ImGui::Image(&*editor.renderer.imgui_images.emplace(si), ImGui::GetContentRegionAvail());
+    ImGui::Image(&*get_renderer().imgui_images.emplace(si), ImGui::GetContentRegionAvail());
 }
 
 void RenderScene::settings_gui() {
@@ -60,7 +59,7 @@ void RenderScene::settings_gui() {
 }
 
 void RenderScene::update_size(v2i new_size) {
-    render_target = vuk::allocate_texture(*editor.renderer.global_allocator, vuk::Format::eB8G8R8A8Unorm, vuk::Extent3D(new_size));
+    render_target = vuk::allocate_texture(*get_renderer().global_allocator, vuk::Format::eB8G8R8A8Unorm, vuk::Extent3D(new_size));
     viewport.update_size(new_size);
 }
 
@@ -76,14 +75,14 @@ void RenderScene::delete_renderable(StaticRenderable* renderable) {
     static_renderables.erase(static_renderables.get_iterator(renderable));
 }
 
-void RenderScene::_upload_buffer_objects(vuk::Allocator& allocator) {
+void RenderScene::upload_buffer_objects(vuk::Allocator& allocator) {
     ZoneScoped;
     
     struct CameraData {
         m44GPU vp;
     };
     CameraData cam_data;
-    cam_data.vp     = (m44GPU) viewport.camera->vp;
+    cam_data.vp     = m44GPU(viewport.camera->vp);
     CameraData sun_cam_data;
     v3 sun_vec = math::normalize(math::rotate(scene_data.sun_direction, v3::Z));
     sun_cam_data.vp     = m44GPU(math::orthographic(v3(30.0f, 30.0f, 40.0f)) * math::look(sun_vec * 25.0f, -sun_vec, v3::Z));
@@ -120,9 +119,9 @@ void RenderScene::setup_renderables_for_passes(vuk::Allocator& allocator) {
     uint32 count = 0;
 
     for (auto& renderable : static_renderables) {
-        assert_else(editor.renderer.material_cache.contains(renderable.material_id))
+        assert_else(get_gpu_asset_cache().materials.contains(renderable.material_id))
             continue;
-        assert_else(editor.renderer.mesh_cache.contains(renderable.mesh_id))
+        assert_else(get_gpu_asset_cache().meshes.contains(renderable.mesh_id))
             continue;
 
         auto& mat_map = renderables_built.try_emplace(renderable.material_id).first->second;
@@ -132,9 +131,9 @@ void RenderScene::setup_renderables_for_passes(vuk::Allocator& allocator) {
     }
     
     for (auto& renderable : renderables) {
-        if (!editor.renderer.material_cache.contains(renderable.material_id))
+        if (!get_gpu_asset_cache().materials.contains(renderable.material_id))
             continue;
-        if (!editor.renderer.mesh_cache.contains(renderable.mesh_id))
+        if (!get_gpu_asset_cache().meshes.contains(renderable.mesh_id))
             continue;
         
         if (renderable.skeleton == nullptr) {
@@ -215,11 +214,11 @@ vuk::Future RenderScene::render(vuk::Allocator& frame_allocator, vuk::Future tar
         upload_dependencies(emitter);
     }
 
-    editor.renderer.wait_for_futures();
+    get_renderer().wait_for_futures();
     
     log(BasicMessage{.str = "render_scene render", .group = "render_scene", .frame_tags = {"render_scene"}});
 
-    _upload_buffer_objects(frame_allocator);
+    upload_buffer_objects(frame_allocator);
     setup_renderables_for_passes(frame_allocator);
     
     auto rg = make_shared<vuk::RenderGraph>("graph");
@@ -281,7 +280,7 @@ void RenderScene::add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg) {
             int item_index = 0;
             for (const auto& [mat_hash, mat_map] : renderables_built) {
                 for (const auto& [mesh_hash, mesh_list] : mat_map) {
-                    MeshGPU* mesh = editor.renderer.mesh_cache.contains(mesh_hash) ? &editor.renderer.mesh_cache[mesh_hash] : nullptr;
+                    MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
                     command_buffer
                         .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
                         .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
@@ -291,7 +290,7 @@ void RenderScene::add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg) {
             }
             for (const auto& [mat_hash, mat_map] : rigged_renderables_built) {
                 for (const auto& [mesh_hash, mesh_list] : mat_map) {
-                    MeshGPU* mesh = editor.renderer.mesh_cache.contains(mesh_hash) ? &editor.renderer.mesh_cache[mesh_hash] : nullptr;
+                    MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
                     command_buffer
                         .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
                         .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
@@ -343,14 +342,14 @@ void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
 
             int item_index = 0;
             for (const auto& [mat_hash, mat_map] : renderables_built) {
-                MaterialGPU* material = editor.renderer.material_cache.contains(mat_hash) ?& editor.renderer.material_cache[mat_hash] : nullptr;
+                MaterialGPU* material = get_gpu_asset_cache().materials.contains(mat_hash) ?& get_gpu_asset_cache().materials[mat_hash] : nullptr;
                 command_buffer
                     .set_rasterization({.cullMode = material->cull_mode})
                     .bind_graphics_pipeline(material->pipeline);
                 material->bind_parameters(command_buffer);
                 material->bind_textures(command_buffer);
                 for (const auto& [mesh_hash, mesh_list] : mat_map) {
-                    MeshGPU* mesh = editor.renderer.mesh_cache.contains(mesh_hash) ? &editor.renderer.mesh_cache[mesh_hash] : nullptr;
+                    MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
                     command_buffer
                         .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
                         .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
@@ -359,14 +358,14 @@ void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                 }
             }
             for (const auto& [mat_hash, mat_map] : rigged_renderables_built) {
-                MaterialGPU* material = editor.renderer.material_cache.contains(mat_hash) ? &editor.renderer.material_cache[mat_hash] : nullptr;
+                MaterialGPU* material = get_gpu_asset_cache().materials.contains(mat_hash) ? &get_gpu_asset_cache().materials[mat_hash] : nullptr;
                 command_buffer
                     .set_rasterization({.cullMode = material->cull_mode})
                     .bind_graphics_pipeline(material->pipeline);
                 material->bind_parameters(command_buffer);
                 material->bind_textures(command_buffer);
                 for (const auto& [mesh_hash, mesh_list] : mat_map) {
-                    MeshGPU* mesh = editor.renderer.mesh_cache.contains(mesh_hash) ? &editor.renderer.mesh_cache[mesh_hash] : nullptr;
+                    MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
                     command_buffer
                         .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
                         .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
@@ -477,7 +476,7 @@ void RenderScene::add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg) {
 
 void RenderScene::add_info_read_pass(std::shared_ptr<vuk::RenderGraph> rg) {
     if (math::contains(range2i(v2i(0), v2i(viewport.size)), query)) {
-        auto info_storage_buffer = **vuk::allocate_buffer(*editor.renderer.global_allocator, { vuk::MemoryUsage::eGPUtoCPU, sizeof(uint32), 1});
+        auto info_storage_buffer = **vuk::allocate_buffer(*get_renderer().global_allocator, { vuk::MemoryUsage::eGPUtoCPU, sizeof(uint32), 1});
         rg->attach_buffer("info_storage", info_storage_buffer);
         rg->add_pass({
             .name  = "read",
@@ -510,7 +509,7 @@ void RenderScene::add_emitter_update_pass(std::shared_ptr<vuk::RenderGraph> rg) 
 }
 
 void RenderScene::cleanup(vuk::Allocator& allocator) {
-    editor.renderer.scenes.remove_value(this);
+    get_renderer().scenes.remove_value(this);
 }
 
 void widget_setup() {
@@ -521,7 +520,7 @@ void widget_setup() {
     vuk::PipelineBaseCreateInfo pci;
     pci.add_glsl(get_contents("shaders/widget.vert"), "shaders/widget.vert");
     pci.add_glsl(get_contents("shaders/widget.frag"), "shaders/widget.frag");
-    editor.renderer.context->create_named_pipeline("widget", pci);
+    get_renderer().context->create_named_pipeline("widget", pci);
     
     MaterialCPU widget_mat = { .file_path = "widget", .shader_name = "widget" };
     upload_material(widget_mat);

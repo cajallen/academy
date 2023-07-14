@@ -6,7 +6,8 @@
 #include "extension/fmt.hpp"
 #include "general/math/math.hpp"
 #include "general/logger.hpp"
-#include "editor/editor.hpp"
+#include "renderer/gpu_asset_cache.hpp"
+#include "renderer/renderer.hpp"
 
 
 namespace spellbook {
@@ -38,11 +39,11 @@ uint64 upload_mesh(const MeshCPU& mesh_cpu, bool frame_allocation) {
     if (mesh_cpu.file_path.empty())
         return 0;
     uint64 mesh_cpu_hash = hash_view(mesh_cpu.file_path);
-    if (editor.renderer.mesh_cache.contains(mesh_cpu_hash))
+    if (get_gpu_asset_cache().meshes.contains(mesh_cpu_hash))
         return mesh_cpu_hash;
     MeshGPU         mesh_gpu;
     mesh_gpu.frame_allocated = frame_allocation;
-    vuk::Allocator& alloc                = frame_allocation ? *editor.renderer.frame_allocator : *editor.renderer.global_allocator;
+    vuk::Allocator& alloc                = frame_allocation ? *get_renderer().frame_allocator : *get_renderer().global_allocator;
     auto            [vert_buf, vert_fut] = vuk::create_buffer(alloc, vuk::MemoryUsage::eGPUonly, vuk::DomainFlagBits::eTransferOnTransfer, std::span(mesh_cpu.vertices));
     mesh_gpu.vertex_buffer               = std::move(vert_buf);
     auto [idx_buf, idx_fut]              = vuk::create_buffer(alloc, vuk::MemoryUsage::eGPUonly, vuk::DomainFlagBits::eTransferOnTransfer, std::span(mesh_cpu.indices));
@@ -50,11 +51,11 @@ uint64 upload_mesh(const MeshCPU& mesh_cpu, bool frame_allocation) {
     mesh_gpu.index_count                 = mesh_cpu.indices.size();
     mesh_gpu.vertex_count                = mesh_cpu.vertices.size();
 
-    editor.renderer.enqueue_setup(std::move(vert_fut));
-    editor.renderer.enqueue_setup(std::move(idx_fut));
+    get_renderer().enqueue_setup(std::move(vert_fut));
+    get_renderer().enqueue_setup(std::move(idx_fut));
 
-    editor.renderer.mesh_cache[mesh_cpu_hash] = std::move(mesh_gpu);
-    editor.renderer.file_path_cache[mesh_cpu_hash] = mesh_cpu.file_path;
+    get_gpu_asset_cache().meshes[mesh_cpu_hash] = std::move(mesh_gpu);
+    get_gpu_asset_cache().paths[mesh_cpu_hash] = mesh_cpu.file_path;
     return mesh_cpu_hash;
 }
 

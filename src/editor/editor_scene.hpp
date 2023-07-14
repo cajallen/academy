@@ -21,18 +21,16 @@ struct EditorScene {
 };
 
 
-struct EditorScenes {
-    static vector<EditorScene*>& values() {
-        static vector<EditorScene*> vec;
-        return vec;
-    }
-};
+inline vector<EditorScene*>& get_editor_scenes() {
+    static vector<EditorScene*> vec;
+    return vec;
+}
 
 template<typename T>
 struct AddEditorScene {
     AddEditorScene(T* t, const string& name) {
-        EditorScenes::values().push_back(new T());
-        EditorScenes::values().back()->name = name;
+        get_editor_scenes().push_back(new T());
+        get_editor_scenes().back()->name = name;
     }
 };
 

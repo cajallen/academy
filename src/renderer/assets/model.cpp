@@ -11,7 +11,6 @@
 #include "extension/icons/font_awesome4.h"
 #include "general/logger.hpp"
 #include "general/math/matrix_math.hpp"
-#include "editor/editor.hpp"
 #include "renderer/renderer.hpp"
 #include "renderer/renderable.hpp"
 #include "renderer/render_scene.hpp"
@@ -19,6 +18,7 @@
 #include "renderer/assets/material.hpp"
 #include "renderer/assets/mesh_asset.hpp"
 #include "renderer/assets/texture_asset.hpp"
+#include "editor/editor.hpp"
 #include "game/game_file.hpp"
 
 namespace spellbook {
@@ -152,8 +152,8 @@ ModelGPU instance_model(RenderScene& render_scene, const ModelCPU& model, bool f
 
         uint64 mesh_id = hash_view(node.mesh_asset_path);
         uint64 material_id = hash_view(node.material_asset_path);
-        editor.renderer.file_path_cache[mesh_id] = node.mesh_asset_path;
-        editor.renderer.file_path_cache[material_id] = node.material_asset_path;
+        get_gpu_asset_cache().paths[mesh_id] = node.mesh_asset_path;
+        get_gpu_asset_cache().paths[material_id] = node.material_asset_path;
 
         auto new_renderable = render_scene.add_renderable(Renderable(
             mesh_id,
@@ -177,11 +177,11 @@ vector<StaticRenderable*> instance_static_model(RenderScene& render_scene, const
 
         uint64 mesh_id = hash_view(node.mesh_asset_path);
         uint64 material_id = hash_view(node.material_asset_path);
-        editor.renderer.file_path_cache[mesh_id] = node.mesh_asset_path;
-        editor.renderer.file_path_cache[material_id] = node.material_asset_path;
+        get_gpu_asset_cache().paths[mesh_id] = node.mesh_asset_path;
+        get_gpu_asset_cache().paths[material_id] = node.material_asset_path;
 
-        editor.renderer.get_mesh_or_upload(mesh_id);
-        editor.renderer.get_material_or_upload(material_id);
+        get_gpu_asset_cache().get_mesh_or_upload(mesh_id);
+        get_gpu_asset_cache().get_material_or_upload(material_id);
 
         renderables.push_back(&*render_scene.static_renderables.emplace(StaticRenderable{
             mesh_id,
@@ -230,19 +230,19 @@ bool save_asset(const ModelCPU& model) {
 }
 
 fs::path _convert_to_relative(const fs::path& path) {
-    return path.lexically_proximate(editor.resource_folder);
+    return path.lexically_proximate(get_editor().resource_folder);
 }
 
 template<>
 ModelCPU& load_asset(const string& input_path, bool assert_exists, bool clear_cache) {
     fs::path absolute_path = to_resource_path(input_path);
     string absolute_path_string = absolute_path.string();
-    if (clear_cache && asset_cache<ModelCPU>().contains(absolute_path_string))
-        asset_cache<ModelCPU>().erase(absolute_path_string);
-    if (asset_cache<ModelCPU>().contains(absolute_path_string))
-        return *asset_cache<ModelCPU>()[absolute_path_string];
+    if (clear_cache && cpu_asset_cache<ModelCPU>().contains(absolute_path_string))
+        cpu_asset_cache<ModelCPU>().erase(absolute_path_string);
+    if (cpu_asset_cache<ModelCPU>().contains(absolute_path_string))
+        return *cpu_asset_cache<ModelCPU>()[absolute_path_string];
 
-    ModelCPU& model = *asset_cache<ModelCPU>().emplace(absolute_path_string, std::make_unique<ModelCPU>()).first->second;
+    ModelCPU& model = *cpu_asset_cache<ModelCPU>().emplace(absolute_path_string, std::make_unique<ModelCPU>()).first->second;
     
     string ext = absolute_path.extension().string();
     bool exists = fs::exists(absolute_path_string);
@@ -506,9 +506,9 @@ bool _convert_gltf_skeletons(tinygltf::Model& model, ModelCPU* model_cpu, bool r
     auto skeleton_path = model_path;
     // TODO: Check some identifier
     string skeleton_path_string = skeleton_path.replace_extension(extension(FileType_General)).string();
-    // SkeletonPrefab& skeleton = asset_cache<SkeletonPrefab>().contains(skeleton_path_string) ?
-    //     asset_cache<SkeletonPrefab>()[skeleton_path_string] :
-    //     asset_cache<SkeletonPrefab>().emplace(skeleton_path_string, SkeletonPrefab()).first->second;
+    // SkeletonPrefab& skeleton = cpu_asset_cache<SkeletonPrefab>().contains(skeleton_path_string) ?
+    //     cpu_asset_cache<SkeletonPrefab>()[skeleton_path_string] :
+    //     cpu_asset_cache<SkeletonPrefab>().emplace(skeleton_path_string, SkeletonPrefab()).first->second;
     SkeletonPrefab& skeleton = load_asset<SkeletonPrefab>(skeleton_path_string, false);
     skeleton.file_path = skeleton_path_string;
     

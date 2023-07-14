@@ -5,9 +5,10 @@
 
 #include "extension/imgui_extra.hpp"
 #include "general/logger.hpp"
+#include "renderer/renderer.hpp"
+#include "renderer/gpu_asset_cache.hpp"
 #include "renderer/assets/skeleton.hpp"
 #include "renderer/assets/mesh_asset.hpp"
-#include "editor/editor.hpp"
 
 namespace spellbook {
 
@@ -25,13 +26,13 @@ void upload_dependencies(Renderable& renderable) {
     ZoneScoped;
     if (renderable.mesh_id == 0 || renderable.material_id == 0)
         return;
-    editor.renderer.get_mesh_or_upload(renderable.mesh_id);
-    editor.renderer.get_material_or_upload(renderable.material_id);
+    get_gpu_asset_cache().get_mesh_or_upload(renderable.mesh_id);
+    get_gpu_asset_cache().get_material_or_upload(renderable.material_id);
 }
 
 void render_item(Renderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = editor.renderer.get_mesh(renderable.mesh_id);
-    MaterialGPU* material = editor.renderer.get_material(renderable.material_id);
+    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
+    MaterialGPU* material = get_gpu_asset_cache().get_material(renderable.material_id);
     assert_else (mesh != nullptr && material != nullptr) {
         if (item_index)
             (*item_index)++;
@@ -55,8 +56,8 @@ void render_item(Renderable& renderable, vuk::CommandBuffer& command_buffer, int
 }
 
 void render_widget(Renderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = editor.renderer.get_mesh(renderable.mesh_id);
-    MaterialGPU* material = editor.renderer.get_material(renderable.material_id);
+    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
+    MaterialGPU* material = get_gpu_asset_cache().get_material(renderable.material_id);
     assert_else(mesh != nullptr && material != nullptr)
         return;
 
@@ -75,7 +76,7 @@ void render_widget(Renderable& renderable, vuk::CommandBuffer& command_buffer, i
 }
 
 void render_shadow(Renderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = editor.renderer.get_mesh(renderable.mesh_id);
+    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
     if (mesh == nullptr) {
         (*item_index)++;
         return;
@@ -92,8 +93,8 @@ void render_shadow(Renderable& renderable, vuk::CommandBuffer& command_buffer, i
 
 
 void render_item(StaticRenderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = editor.renderer.get_mesh(renderable.mesh_id);
-    MaterialGPU* material = editor.renderer.get_material(renderable.material_id);
+    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
+    MaterialGPU* material = get_gpu_asset_cache().get_material(renderable.material_id);
     assert_else (mesh != nullptr && material != nullptr) {
         if (item_index)
             (*item_index)++;
@@ -117,7 +118,7 @@ void render_item(StaticRenderable& renderable, vuk::CommandBuffer& command_buffe
 }
 
 void render_shadow(StaticRenderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = editor.renderer.get_mesh(renderable.mesh_id);
+    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
     if (mesh == nullptr) {
         (*item_index)++;
         return;

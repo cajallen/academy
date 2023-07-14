@@ -5,11 +5,11 @@
 #include <tracy/Tracy.hpp>
 
 #include "general/file.hpp"
+#include "editor/editor.hpp"
 #include "editor/console.hpp"
 #include "editor/asset_browser.hpp"
 #include "editor/editor_scene.hpp"
 #include "editor/widget_system.hpp"
-#include "editor/editor.hpp"
 #include "game/input.hpp"
 #include "game/game_file.hpp"
 #include "game/game_scene.hpp"
@@ -20,24 +20,22 @@ namespace fs = std::filesystem;
 namespace spellbook {
 
 void GUI::setup() {
-    fs::path gui_file = fs::path(editor.user_folder) / ("gui" + extension(FileType_General));
-
-    if (!fs::exists(gui_file))
-        return;
-    
-    json j = parse_file(gui_file.string());
-    FROM_JSON_MEMBER(windows);
-    FROM_JSON_MEMBER(item_state);
-    FROM_JSON_MEMBER(asset_browser_file);
-    if (!fs::exists(fs::path(asset_browser_file))) {
-        asset_browser_file = fs::current_path().string();
-    }
+    fs::path gui_file = fs::path(get_editor().user_folder) / ("gui" + extension(FileType_General));
 
     WidgetSystem::setup();
+    if (fs::exists(gui_file)) {
+        json j = parse_file(gui_file.string());
+        FROM_JSON_MEMBER(windows);
+        FROM_JSON_MEMBER(item_state);
+        FROM_JSON_MEMBER(asset_browser_file);
+        if (!fs::exists(fs::path(asset_browser_file))) {
+            asset_browser_file = fs::current_path().string();
+        }
+    }
 }
 
 void GUI::shutdown() {
-    fs::path gui_file = fs::path(editor.user_folder) / ("gui" + extension(FileType_General));
+    fs::path gui_file = fs::path(get_editor().user_folder) / ("gui" + extension(FileType_General));
     fs::create_directories(gui_file.parent_path());
     
     auto j = json();
@@ -103,28 +101,28 @@ void GUI::update() {
     if (*(p_open = window_open("demo")))
         ImGui::ShowDemoWindow(p_open);
 
-    for (int i = 0; i < EditorScenes::values().size(); i++) {
-        if (*(p_open = window_open(EditorScenes::values()[i]->name)))
-            EditorScenes::values()[i]->window(p_open);
+    for (int i = 0; i < get_editor_scenes().size(); i++) {
+        if (*(p_open = window_open(get_editor_scenes()[i]->name)))
+            get_editor_scenes()[i]->window(p_open);
     }
     if (*(p_open = window_open("console")))
         Console::window(p_open);
-    for (auto& scene : EditorScenes::values()) {
+    for (auto& scene : get_editor_scenes()) {
         if (*(p_open = window_open(scene->name + " info")))
             scene->settings_window(p_open);
     }
-    for (auto& scene : EditorScenes::values()) {
+    for (auto& scene : get_editor_scenes()) {
         if (*(p_open = window_open(scene->name + " output")))
             scene->output_window(p_open);
     }
     if (*(p_open = window_open("input")))
         Input::debug_window(p_open);
     if (*(p_open = window_open("renderer")))
-        editor.renderer.debug_window(p_open);
+        get_renderer().debug_window(p_open);
     if (*(p_open = window_open("colors")))
         color_window(p_open);
     if (*(p_open = window_open("asset_browser"))) {
-        std::filesystem::path asset_browser_path = asset_browser_file.empty() ? editor.external_resource_folder : asset_browser_file;
+        std::filesystem::path asset_browser_path = asset_browser_file.empty() ? get_editor().external_resource_folder : asset_browser_file;
         asset_browser("Asset Browser", p_open, &asset_browser_path);
         asset_browser_file = asset_browser_path.string();
     }

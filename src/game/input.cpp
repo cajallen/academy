@@ -6,7 +6,7 @@
 #include "extension/fmt.hpp"
 #include "extension/fmt_geometry.hpp"
 #include "general/logger.hpp"
-#include "editor/editor.hpp"
+#include "renderer/renderer.hpp"
 
 namespace spellbook {
 
@@ -31,9 +31,9 @@ bool            Input::cursor_just_disabled = false;
 umap<uint32, bool> Input::key_down;
 
 void Input::setup() {
-    assert_else(editor.renderer.window != nullptr)
+    assert_else(get_renderer().window != nullptr)
         return;
-    window = editor.renderer.window;
+    window = get_renderer().window;
     glfwSetKeyCallback(window, default_key_callback);
     glfwSetCursorPosCallback(window, default_mouse_pos_callback);
     glfwSetMouseButtonCallback(window, default_mouse_button_callback);
@@ -150,7 +150,7 @@ void default_drop_callback(GLFWwindow*, int, const char**) {
 }
 
 void default_framebuffer_size_callback(GLFWwindow*, int x, int y) {
-    editor.renderer.resize({x, y});
+    get_renderer().resize({x, y});
     // editor.step(true);
 }
 

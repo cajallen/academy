@@ -1,6 +1,6 @@
 #include "game_scene.hpp"
 
-#include "editor/editor.hpp"
+#include "renderer/renderer.hpp"
 
 namespace spellbook {
 
@@ -10,7 +10,7 @@ void GameScene::setup() {
 	render_scene.viewport.camera = &camera;
 	render_scene.viewport.setup();
 
-	editor.renderer.add_scene(&render_scene);
+	get_renderer().add_scene(&render_scene);
 }
 
 void GameScene::update() {
@@ -18,7 +18,7 @@ void GameScene::update() {
 }
 
 void GameScene::shutdown() {
-	render_scene.cleanup(*editor.renderer.global_allocator);
+	render_scene.cleanup(*get_renderer().global_allocator);
 }
 
 }

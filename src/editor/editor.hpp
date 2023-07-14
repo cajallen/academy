@@ -8,7 +8,6 @@ namespace spellbook {
 struct GameScene;
 
 struct Editor {
-    Renderer renderer;
     GUI      gui;
     
     string external_resource_folder;
@@ -21,6 +20,9 @@ struct Editor {
     void shutdown();
 };
 
-extern Editor editor;
+inline Editor& get_editor() {
+    static Editor editor;
+    return editor;
+}
 
 }

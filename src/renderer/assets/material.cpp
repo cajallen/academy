@@ -7,7 +7,6 @@
 #include "extension/imgui_extra.hpp"
 #include "general/logger.hpp"
 #include "renderer/renderer.hpp"
-#include "editor/editor.hpp"
 #include "game/game_file.hpp"
 
 
@@ -33,11 +32,11 @@ uint64 upload_material(const MaterialCPU& material_cpu, bool frame_allocation) {
     MaterialGPU material_gpu;
     material_gpu.material_cpu = material_cpu;
     material_gpu.frame_allocated = frame_allocation;
-    material_gpu.pipeline      = editor.renderer.context->get_named_pipeline(vuk::Name(material_cpu.shader_name));
-    material_gpu.color = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(material_cpu.color_asset_path).value.view.get(), material_cpu.sampler.get());
-    material_gpu.normal = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(material_cpu.normal_asset_path).value.view.get(), material_cpu.sampler.get());
-    material_gpu.orm = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(material_cpu.orm_asset_path).value.view.get(), material_cpu.sampler.get());
-    material_gpu.emissive = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(material_cpu.emissive_asset_path).value.view.get(), material_cpu.sampler.get());
+    material_gpu.pipeline      = get_renderer().context->get_named_pipeline(vuk::Name(material_cpu.shader_name));
+    material_gpu.color = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(material_cpu.color_asset_path).value.view.get(), material_cpu.sampler.get());
+    material_gpu.normal = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(material_cpu.normal_asset_path).value.view.get(), material_cpu.sampler.get());
+    material_gpu.orm = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(material_cpu.orm_asset_path).value.view.get(), material_cpu.sampler.get());
+    material_gpu.emissive = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(material_cpu.emissive_asset_path).value.view.get(), material_cpu.sampler.get());
 
     material_gpu.tints         = {
         (v4) material_cpu.color_tint,
@@ -47,13 +46,13 @@ uint64 upload_material(const MaterialCPU& material_cpu, bool frame_allocation) {
     material_gpu.cull_mode = material_cpu.cull_mode;
     material_gpu.frame_allocated = frame_allocation;
 
-    editor.renderer.material_cache[material_cpu_hash] = std::move(material_gpu);
-    editor.renderer.file_path_cache[material_cpu_hash] = material_cpu.file_path;
+    get_gpu_asset_cache().materials[material_cpu_hash] = std::move(material_gpu);
+    get_gpu_asset_cache().paths[material_cpu_hash] = material_cpu.file_path;
     return material_cpu_hash;
 }
 
 void MaterialGPU::update_from_cpu(const MaterialCPU& new_material) {
-    pipeline      = editor.renderer.context->get_named_pipeline(vuk::Name(new_material.shader_name));
+    pipeline      = get_renderer().context->get_named_pipeline(vuk::Name(new_material.shader_name));
     tints         = {
         (v4) new_material.color_tint,
         (v4) new_material.emissive_tint,
@@ -62,13 +61,13 @@ void MaterialGPU::update_from_cpu(const MaterialCPU& new_material) {
     cull_mode = new_material.cull_mode;
 
     if (material_cpu.color_asset_path != new_material.color_asset_path)
-        color = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(new_material.color_asset_path).value.view.get(), new_material.sampler.get());
+        color = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(new_material.color_asset_path).value.view.get(), new_material.sampler.get());
     if (material_cpu.normal_asset_path != new_material.normal_asset_path)
-        normal = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(new_material.normal_asset_path).value.view.get(), new_material.sampler.get());
+        normal = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(new_material.normal_asset_path).value.view.get(), new_material.sampler.get());
     if (material_cpu.orm_asset_path != new_material.orm_asset_path)
-        orm = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(new_material.orm_asset_path).value.view.get(), new_material.sampler.get());
+        orm = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(new_material.orm_asset_path).value.view.get(), new_material.sampler.get());
     if (material_cpu.emissive_asset_path != new_material.emissive_asset_path)
-        emissive = vuk::make_sampled_image(editor.renderer.get_texture_or_upload(new_material.emissive_asset_path).value.view.get(), new_material.sampler.get());
+        emissive = vuk::make_sampled_image(get_gpu_asset_cache().get_texture_or_upload(new_material.emissive_asset_path).value.view.get(), new_material.sampler.get());
 
     material_cpu = new_material;
 }
@@ -102,24 +101,24 @@ bool inspect(MaterialCPU* material) {
 
 void inspect(MaterialGPU* material) {
     ImGui::Text("Base Color");
-    ImGui::Image(&*editor.renderer.imgui_images.emplace(material->color), {100, 100});
+    ImGui::Image(&*get_renderer().imgui_images.emplace(material->color), {100, 100});
     ImGui::ColorEdit4("Tint##BaseColor", material->tints.color_tint.data);
     
     ImGui::BeginGroup();
     ImGui::Text("ORM");
-    ImGui::Image(&*editor.renderer.imgui_images.emplace(material->orm), {100, 100});
+    ImGui::Image(&*get_renderer().imgui_images.emplace(material->orm), {100, 100});
     ImGui::EndGroup();
     ImGui::SameLine();
 
     ImGui::BeginGroup();
     ImGui::Text("Normals");
-    ImGui::Image(&*editor.renderer.imgui_images.emplace(material->normal), {100, 100});
+    ImGui::Image(&*get_renderer().imgui_images.emplace(material->normal), {100, 100});
     ImGui::EndGroup();
     ImGui::SameLine();
 
     ImGui::BeginGroup();
     ImGui::Text("Emissive");
-    ImGui::Image(&*editor.renderer.imgui_images.emplace(material->emissive), {100, 100});
+    ImGui::Image(&*get_renderer().imgui_images.emplace(material->emissive), {100, 100});
     ImGui::EndGroup();
     ImGui::ColorEdit4("Emissive Tint", material->tints.emissive_tint.data);
 

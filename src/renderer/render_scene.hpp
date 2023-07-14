@@ -50,11 +50,12 @@ struct PostProcessData {
 struct RenderScene {
     string              name;
     
+    Viewport viewport;
     plf::colony<StaticRenderable> static_renderables;
     plf::colony<Renderable> renderables;
     plf::colony<Renderable> widget_renderables;
     plf::colony<EmitterGPU> emitters;
-    Viewport                viewport;
+    bool render_widgets = true;
     
     SceneData       scene_data;
     PostProcessData post_process_data;
@@ -66,11 +67,13 @@ struct RenderScene {
     bool cull_pause = false;
     vuk::Texture render_target;
 
-    bool render_widgets = true;
-
     vuk::Buffer buffer_camera_data;
     vuk::Buffer buffer_sun_camera_data;
     vuk::Buffer buffer_composite_data;
+    vuk::Buffer buffer_model_mats;
+    vuk::Buffer buffer_ids;
+    umap<mat_id, umap<mesh_id, vector<std::tuple<uint32, m44GPU*>>>> renderables_built;
+    umap<mat_id, umap<mesh_id, vector<std::tuple<uint32, SkeletonGPU*, m44GPU*>>>> rigged_renderables_built;
     
     void update_size(v2i new_size);
     
@@ -80,16 +83,6 @@ struct RenderScene {
     void        pre_render();
     void        update();
     vuk::Future render(vuk::Allocator& allocator, vuk::Future target);
-
-    void add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_widget_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_info_read_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_emitter_update_pass(std::shared_ptr<vuk::RenderGraph> rg);
-
-    void prune_emitters();
-
     void        cleanup(vuk::Allocator& allocator);
 
     Renderable* add_renderable(const Renderable& renderable);
@@ -102,14 +95,15 @@ struct RenderScene {
     Renderable& quick_renderable(uint64 mesh_id, uint64 mat_id, bool frame_allocated);
     Renderable& quick_renderable(uint64 mesh_id, const MaterialCPU& mat_id, bool frame_allocated);
 
-    void _upload_buffer_objects(vuk::Allocator& frame_allocator);
-
-    vuk::Buffer buffer_model_mats;
-    vuk::Buffer buffer_ids;
-
-    umap<mat_id, umap<mesh_id, vector<std::tuple<uint32, m44GPU*>>>> renderables_built;
-    umap<mat_id, umap<mesh_id, vector<std::tuple<uint32, SkeletonGPU*, m44GPU*>>>> rigged_renderables_built;
+    void upload_buffer_objects(vuk::Allocator& frame_allocator);
     void setup_renderables_for_passes(vuk::Allocator& allocator);
+    void prune_emitters();
+    void add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_widget_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_info_read_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_emitter_update_pass(std::shared_ptr<vuk::RenderGraph> rg);
 };
 
 }

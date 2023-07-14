@@ -1,9 +1,9 @@
 #include "editor/editor.hpp"
 
 int main() {
-	spellbook::editor.startup();
-	spellbook::editor.run();
-	spellbook::editor.shutdown();
+	spellbook::get_editor().startup();
+	spellbook::get_editor().run();
+	spellbook::get_editor().shutdown();
 
 	return 0;
 }

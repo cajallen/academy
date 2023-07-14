@@ -15,8 +15,6 @@ namespace fs = std::filesystem;
 
 namespace spellbook {
 
-Editor editor;
-
 ADD_EDITOR_SCENE(AssetEditor);
 
 void Editor::startup() {
@@ -25,10 +23,10 @@ void Editor::startup() {
     user_folder = (fs::current_path() / "user").string();
 
     Console::setup();
-    renderer.setup();
+    get_renderer().setup();
     Input::setup();
 
-    for (auto& editor_scene : EditorScenes::values()) {
+    for (auto& editor_scene : get_editor_scenes()) {
         editor_scene->setup();
     }
     
@@ -37,28 +35,28 @@ void Editor::startup() {
 
 void Editor::run() {
     while (!Input::exit_accepted) {
-        editor.step(false);
+        step(false);
     }
 }
 
 void Editor::step(bool skip_input) {
     if (!skip_input)
         Input::update();
-    renderer.update();
+    get_renderer().update();
     gui.update();
-    for (auto& editor_scene : EditorScenes::values()) {
+    for (auto& editor_scene : get_editor_scenes()) {
         editor_scene->update();
     }
-    renderer.render();
+    get_renderer().render();
     FrameMark;
 }
 
 void Editor::shutdown() {
     gui.shutdown();
-    for (auto& editor_scene : EditorScenes::values()) {
+    for (auto& editor_scene : get_editor_scenes()) {
         editor_scene->shutdown();
     }
-    renderer.cleanup();
+    get_renderer().cleanup();
 }
 
 }

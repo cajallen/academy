@@ -12,7 +12,7 @@
 #include "extension/imgui_extra.hpp"
 #include "general/math/matrix_math.hpp"
 #include "renderer/render_scene.hpp"
-#include "editor/editor.hpp"
+#include "renderer/renderer.hpp"
 #include "editor/pose_widget.hpp"
 #include "game/input.hpp"
 
@@ -115,7 +115,7 @@ SkeletonCPU instance_prefab(SkeletonPrefab& prefab) {
 
 SkeletonGPU upload_skeleton(const SkeletonCPU& skeleton_cpu) {
     SkeletonGPU skeleton_gpu;
-    vuk::Allocator& alloc = *editor.renderer.global_allocator;
+    vuk::Allocator& alloc = *get_renderer().global_allocator;
     uint32 alloc_size = sizeof(uint32) * 4 + sizeof(m44GPU) * skeleton_cpu.bones.size();
 
     skeleton_gpu.buffer = *vuk::allocate_buffer(alloc, {vuk::MemoryUsage::eCPUtoGPU, alloc_size, 1});
@@ -439,12 +439,12 @@ template <>
 SkeletonPrefab& load_asset(const string& input_path, bool assert_exists, bool clear_cache) {
     fs::path absolute_path = to_resource_path(input_path);
     string absolute_path_string = absolute_path.string();
-    if (clear_cache && asset_cache<SkeletonPrefab>().contains(absolute_path_string))
-        asset_cache<SkeletonPrefab>().erase(absolute_path_string);
-    if (asset_cache<SkeletonPrefab>().contains(absolute_path_string))
-        return *asset_cache<SkeletonPrefab>()[absolute_path_string];
+    if (clear_cache && cpu_asset_cache<SkeletonPrefab>().contains(absolute_path_string))
+        cpu_asset_cache<SkeletonPrefab>().erase(absolute_path_string);
+    if (cpu_asset_cache<SkeletonPrefab>().contains(absolute_path_string))
+        return *cpu_asset_cache<SkeletonPrefab>()[absolute_path_string];
 
-    SkeletonPrefab& value = *asset_cache<SkeletonPrefab>().emplace(absolute_path_string, std::make_unique<SkeletonPrefab>()).first->second;
+    SkeletonPrefab& value = *cpu_asset_cache<SkeletonPrefab>().emplace(absolute_path_string, std::make_unique<SkeletonPrefab>()).first->second;
 
     string ext = absolute_path.extension().string();
     bool exists = fs::exists(absolute_path_string);

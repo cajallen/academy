@@ -3,7 +3,7 @@
 #include <vuk/src/RenderGraphUtil.hpp>
 #include <vuk/Partials.hpp>
 #include <vuk/Allocator.hpp>
-#include <backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_glfw.h>
 #include <tracy/Tracy.hpp>
 #include <stb_image.h>
 
@@ -15,12 +15,9 @@
 #include "general/hash.hpp"
 #include "general/math/math.hpp"
 #include "general/logger.hpp"
-#include "renderer/draw_functions.hpp"
 #include "renderer/render_scene.hpp"
 #include "renderer/samplers.hpp"
 #include "renderer/utils.hpp"
-#include "renderer/assets/texture_asset.hpp"
-#include "renderer/assets/mesh_asset.hpp"
 #include "game/input.hpp"
 
 namespace spellbook {
@@ -69,7 +66,7 @@ Renderer::Renderer() : imgui_data() {
     auto phys_ret = selector.select();
     assert_else(phys_ret.has_value());
     vkb::PhysicalDevice vkbphysical_device = phys_ret.value();
-    physical_device                        = vkbphysical_device.physical_device;
+    auto physical_device = vkbphysical_device.physical_device;
 
     vkb::DeviceBuilder               device_builder{vkbphysical_device};
     VkPhysicalDeviceVulkan12Features vk12features{.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
@@ -93,11 +90,11 @@ Renderer::Renderer() : imgui_data() {
     auto dev_ret   = device_builder.build();
     assert_else(dev_ret.has_value());
     vkbdevice                        = dev_ret.value();
-    graphics_queue                   = vkbdevice.get_queue(vkb::QueueType::graphics).value();
+    auto graphics_queue = vkbdevice.get_queue(vkb::QueueType::graphics).value();
     auto graphics_queue_family_index = vkbdevice.get_queue_index(vkb::QueueType::graphics).value();
-    transfer_queue                   = vkbdevice.get_queue(vkb::QueueType::transfer).value();
+    auto transfer_queue = vkbdevice.get_queue(vkb::QueueType::transfer).value();
     auto transfer_queue_family_index = vkbdevice.get_queue_index(vkb::QueueType::transfer).value();
-    device                           = vkbdevice.device;
+    auto device = vkbdevice.device;
 
     vuk::ContextCreateParameters::FunctionPointers fps;
     fps.vkGetInstanceProcAddr = vkbinstance.fp_vkGetInstanceProcAddr;
@@ -112,9 +109,10 @@ Renderer::Renderer() : imgui_data() {
          VK_QUEUE_FAMILY_IGNORED,
          transfer_queue,
          transfer_queue_family_index,
-        fps});
-    const unsigned num_inflight_frames = 3;
-    super_frame_resource.emplace(*context, num_inflight_frames);
+        fps
+    });
+
+    super_frame_resource.emplace(*context, inflight_count);
     global_allocator.emplace(*super_frame_resource);
     swapchain = context->add_swapchain(make_swapchain(vkbdevice));
 
@@ -169,7 +167,7 @@ void Renderer::setup() {
         context->create_named_pipeline("directional_depth", pci);
     }
 
-    upload_defaults();
+    get_gpu_asset_cache().upload_defaults();
 
     {
         // OPTIMIZATION: can thread
@@ -179,7 +177,6 @@ void Renderer::setup() {
     }
 
     wait_for_futures();
-
     stage = RenderStage_Inactive;
 }
 
@@ -262,28 +259,7 @@ void Renderer::render() {
         }
     }
 
-    auto mesh_it = mesh_cache.begin();
-    while (mesh_it != mesh_cache.end()) {
-        if (mesh_it->second.frame_allocated)
-            mesh_it = mesh_cache.erase(mesh_it);
-        else
-            mesh_it++;
-    }
-    auto tex_it = texture_cache.begin();
-    while (tex_it != texture_cache.end()) {
-        if (tex_it->second.frame_allocated)
-            tex_it = texture_cache.erase(tex_it);
-        else
-            tex_it++;
-    }
-    auto mat_it = material_cache.begin();
-    
-    while (mat_it != material_cache.end()) {
-        if (mat_it->second.frame_allocated)
-            mat_it = material_cache.erase(mat_it);
-        else
-            mat_it++;
-    }
+    get_gpu_asset_cache().clear_frame_allocated_assets();
     frame_allocator.reset();
 
     stage = RenderStage_Inactive;
@@ -294,9 +270,7 @@ void Renderer::cleanup() {
     for (auto scene : scenes) {
         scene->cleanup(*global_allocator);
     }
-    mesh_cache.clear();
-    material_cache.clear();
-    texture_cache.clear();
+    get_gpu_asset_cache().clear();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 }
@@ -338,48 +312,6 @@ void Renderer::resize(v2i new_size) {
     swapchain = new_swapchain;
 }
 
-MeshGPU* Renderer::get_mesh(uint64 id) {
-    if (mesh_cache.contains(id))
-        return &mesh_cache[id];
-    return nullptr;
-}
-
-MaterialGPU* Renderer::get_material(uint64 id) {
-    if (material_cache.contains(id))
-        return &material_cache[id];
-    return nullptr;
-}
-
-TextureGPU* Renderer::get_texture(uint64 id) {
-    if (texture_cache.contains(id))
-        return &texture_cache[id];
-    return nullptr;
-}
-
-MeshGPU& Renderer::get_mesh_or_upload(uint64 id) {
-    if (mesh_cache.contains(id))
-        return mesh_cache[id];
-    assert_else(file_path_cache.contains(id));
-    upload_mesh(load_mesh(file_path_cache[id]));
-    return mesh_cache[id];
-}
-
-MaterialGPU& Renderer::get_material_or_upload(uint64 id) {
-    if (material_cache.contains(id))
-        return material_cache[id];
-    assert_else(file_path_cache.contains(id));
-    upload_material(load_material(file_path_cache[id]));
-    return material_cache[id];
-}
-
-TextureGPU& Renderer::get_texture_or_upload(const string& asset_path) {
-    assert_else(!asset_path.empty());
-    uint64 hash = hash_view(asset_path);
-    if (texture_cache.contains(hash))
-        return texture_cache[hash];
-    upload_texture(load_texture(asset_path));
-    return texture_cache[hash];
-}
 
 
 void Renderer::debug_window(bool* p_open) {
@@ -392,69 +324,5 @@ void Renderer::debug_window(bool* p_open) {
     ImGui::End();
 }
 
-
-void Renderer::upload_defaults() {
-    TextureCPU tex_white_upload {
-        .file_path = "textures/white.sbtex",
-        .size = v2i(8, 8),
-        .format = vuk::Format::eR8G8B8A8Srgb,
-        .pixels = vector<uint8>(8 * 8 * 4, 255)
-    };
-    upload_texture(tex_white_upload);
-
-    constexpr uint32 grid_size = 1024;
-    TextureCPU tex_grid_upload {
-        .file_path = "textures/grid.sbtex",
-        .size = v2i(grid_size, grid_size),
-        .format = vuk::Format::eR8G8B8A8Srgb,
-        .pixels = vector<uint8>(grid_size * grid_size * 4, 255)
-    };
-    // do border
-    for (uint32 i = 0; i < (grid_size - 1); i++) {
-        for (uint32 pixel_pos : vector<uint32>{i, i * grid_size + (grid_size - 1), (grid_size - 1) * grid_size + i + 1, i * grid_size + grid_size}) {
-            tex_grid_upload.pixels[pixel_pos * 4 + 0] = 0;
-            tex_grid_upload.pixels[pixel_pos * 4 + 1] = 0;
-            tex_grid_upload.pixels[pixel_pos * 4 + 2] = 0;
-        }
-    }
-    upload_texture(tex_grid_upload);
-
-    MaterialCPU default_mat = {
-        .file_path = "default",
-        .color_tint = palette::black,
-    };
-    upload_material(default_mat);
-    TextureCPU default_tex = {
-        .file_path = "default",
-        .size = {2, 2},
-        .format = vuk::Format::eR8G8B8A8Srgb,
-        .pixels = {255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255}
-    };
-    upload_texture(default_tex);
-    MeshCPU default_mesh   = generate_cube(v3(0), v3(1));
-    default_mesh.file_path = "default";
-    upload_mesh(default_mesh);
-}
-
-
-void FrameTimer::update() {
-    int last_index   = ptr;
-    float last_time    = frame_times[ptr];
-    ptr              = (ptr + 1) % 200;
-    frame_times[ptr] = Input::time;
-
-    if (filled > 1)
-        delta_times[last_index] = frame_times[ptr] - last_time;
-    filled = math::min(filled + 1, 200);
-}
-
-void FrameTimer::inspect() {
-    float average = 0.0f;
-    for (int n = 0; n < filled; n++)
-        average += delta_times[n];
-    average /= (float) filled;
-    string overlay = fmt_("FPS: {:.1f}", 1.0f / average);
-    ImGui::PlotLines("DT", delta_times.data(), filled, ptr, overlay.c_str(), 0.0f, 0.1f, ImVec2(0, 80.0f));
-}
 
 }

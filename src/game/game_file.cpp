@@ -10,16 +10,16 @@ namespace spellbook {
 fs::path to_resource_path(const fs::path& path) {
     fs::path ret;
     if (path.is_relative()) {
-        if (path.string().starts_with(fs::path(editor.resource_folder).lexically_proximate(fs::current_path()).string()))
+        if (path.string().starts_with(fs::path(get_editor().resource_folder).lexically_proximate(fs::current_path()).string()))
             return (fs::current_path() / path).string();
-        return (editor.resource_folder / path).string();
+        return (get_editor().resource_folder / path).string();
     }
     return path;
 }
 
 void create_resource_directory(const fs::path& output_folder) {
-    fs::create_directory(editor.resource_folder);
-    auto folder = editor.resource_folder / output_folder;
+    fs::create_directory(get_editor().resource_folder);
+    auto folder = get_editor().resource_folder / output_folder;
     fs::create_directory(folder);
 }
 

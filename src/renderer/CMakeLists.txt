@@ -19,6 +19,7 @@ add_library(renderer
     samplers.cpp
     vertex.cpp
     viewport.cpp
+    gpu_asset_cache.cpp
 )
 
 target_link_libraries(renderer PUBLIC archive academy_libs academy_src)

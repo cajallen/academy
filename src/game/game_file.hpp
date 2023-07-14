@@ -41,7 +41,7 @@ bool inspect_dependencies(vector<string>& dependencies, const string& current_pa
 
 
 template <typename T>
-umap<string, std::unique_ptr<T>>& asset_cache() {
+umap<string, std::unique_ptr<T>>& cpu_asset_cache() {
     static umap<string, std::unique_ptr<T>> t_cache;
     return t_cache;
 }
@@ -54,8 +54,10 @@ bool save_asset(const T& asset_value) {
     string ext = fs::path(asset_value.file_path).extension().string();
     assert_else(ext == extension(from_typeinfo(typeid(T))))
         return false;
-    
-    file_dump(j, to_resource_path(asset_value.file_path).string());
+
+    string absolute_path = to_resource_path(asset_value.file_path).string();
+    cpu_asset_cache<T>()[absolute_path] = std::make_unique<T>(asset_value);
+    file_dump(j, absolute_path);
     return true;
 }
 
@@ -64,25 +66,25 @@ template <typename T>
 T& load_asset(const string& file_path, bool assert_exists = false, bool clear_cache = false) {
     fs::path absolute_path = to_resource_path(file_path);
     string absolute_path_string = absolute_path.string();
-    if (clear_cache && asset_cache<T>().contains(absolute_path_string))
-        asset_cache<T>().erase(absolute_path_string);
-    else if (asset_cache<T>().contains(absolute_path_string))
-        return *asset_cache<T>()[absolute_path_string];
+    if (clear_cache && cpu_asset_cache<T>().contains(absolute_path_string))
+        cpu_asset_cache<T>().erase(absolute_path_string);
+    else if (cpu_asset_cache<T>().contains(absolute_path_string))
+        return *cpu_asset_cache<T>()[absolute_path_string];
     
     bool exists = fs::exists(absolute_path_string);
     string ext = absolute_path.extension().string();
     bool corrext = ext == extension(from_typeinfo(typeid(T)));
     if (assert_exists) {
         assert_else(exists && corrext)
-            return *asset_cache<T>().emplace(absolute_path_string, std::make_unique<T>()).first->second;
+            return *cpu_asset_cache<T>().emplace(absolute_path_string, std::make_unique<T>()).first->second;
     } else {
         check_else(exists && corrext)
-            return *asset_cache<T>().emplace(absolute_path_string, std::make_unique<T>()).first->second;
+            return *cpu_asset_cache<T>().emplace(absolute_path_string, std::make_unique<T>()).first->second;
     }
 
     json& j = FileCache::get().load_json(absolute_path_string);
     
-    T& t = *asset_cache<T>().emplace(absolute_path_string, std::make_unique<T>(from_jv<T>(to_jv(j)))).first->second;
+    T& t = *cpu_asset_cache<T>().emplace(absolute_path_string, std::make_unique<T>(from_jv<T>(to_jv(j)))).first->second;
     t.dependencies = FileCache::get().load_dependencies(j);
     t.file_path = absolute_path.string();
     return t;
