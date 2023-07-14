@@ -135,10 +135,15 @@ void Renderer::add_scene(RenderScene* scene) {
     }
 }
 
+void Renderer::remove_scene(RenderScene* scene) {
+    scene->cleanup();
+    scenes.remove_value(scene);
+}
+
 void Renderer::setup() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGui::StyleColorsSpellbook();
+    ImGui::StyleColorsAcademy();
     ImGui_ImplGlfw_InitForVulkan(window, false);
     imgui_data = ImGui_ImplVuk_Init(*global_allocator, compiler);
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -214,6 +219,8 @@ void Renderer::render() {
         ZoneScoped;
         scene->pre_render();
 
+        assert_else(!scene->name.empty());
+
         std::shared_ptr<vuk::RenderGraph> rgx = std::make_shared<vuk::RenderGraph>(vuk::Name(scene->name));
         rgx->attach_image("input_uncleared", vuk::ImageAttachment::from_texture(scene->render_target));
         rgx->clear_image("input_uncleared", vuk::Name(scene->name + "_input"), vuk::ClearColor{0.1f, 0.1f, 0.1f, 1.0f});
@@ -265,11 +272,9 @@ void Renderer::render() {
     stage = RenderStage_Inactive;
 }
 
-void Renderer::cleanup() {
+void Renderer::shutdown() {
     context->wait_idle();
-    for (auto scene : scenes) {
-        scene->cleanup(*global_allocator);
-    }
+    assert_else(scenes.empty());
     get_gpu_asset_cache().clear();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

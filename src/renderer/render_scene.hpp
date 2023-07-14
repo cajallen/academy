@@ -83,7 +83,7 @@ struct RenderScene {
     void        pre_render();
     void        update();
     vuk::Future render(vuk::Allocator& allocator, vuk::Future target);
-    void        cleanup(vuk::Allocator& allocator);
+    void        cleanup();
 
     Renderable* add_renderable(const Renderable& renderable);
     void        delete_renderable(Renderable* renderable);

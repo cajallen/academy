@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "extension/fmt.hpp"
 #include "general/vector.hpp"
 #include "game/game_scene.hpp"
 
@@ -11,7 +12,7 @@ struct EditorScene {
     
     EditorScene() { scene = std::make_unique<GameScene>(); }
 
-    virtual void setup() { scene->setup(); }
+    virtual void setup() { scene->name = fmt_("{}::GameScene", name); scene->setup(); }
     virtual void update() { scene->update(); }
     virtual void window(bool* p_open) { }
     virtual void shutdown() { scene->shutdown(); }

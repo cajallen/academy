@@ -508,8 +508,7 @@ void RenderScene::add_emitter_update_pass(std::shared_ptr<vuk::RenderGraph> rg) 
     });
 }
 
-void RenderScene::cleanup(vuk::Allocator& allocator) {
-    get_renderer().scenes.remove_value(this);
+void RenderScene::cleanup() {
 }
 
 void widget_setup() {

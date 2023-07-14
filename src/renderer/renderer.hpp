@@ -66,10 +66,11 @@ struct Renderer {
     void setup();
     void update();
     void render();
-    void cleanup();
+    void shutdown();
     ~Renderer();
 
     void add_scene(RenderScene*);
+    void remove_scene(RenderScene*);
     void enqueue_setup(vuk::Future&& fupgpt);
     void wait_for_futures();
     

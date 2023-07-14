@@ -7,6 +7,8 @@
 namespace spellbook {
 
 struct GameScene {
+    string name;
+
     Camera camera;
     RenderScene render_scene;
     entt::registry registry;

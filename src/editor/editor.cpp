@@ -56,7 +56,7 @@ void Editor::shutdown() {
     for (auto& editor_scene : get_editor_scenes()) {
         editor_scene->shutdown();
     }
-    get_renderer().cleanup();
+    get_renderer().shutdown();
 }
 
 }
