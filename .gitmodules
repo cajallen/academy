@@ -1,0 +1,27 @@
+[submodule "src/archive"]
+	path = src/archive
+	url = https://github.com/cajallen/archive.git
+[submodule "libs/imgui"]
+	path = libs/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "libs/vuk"]
+	path = libs/vuk
+	url = https://github.com/martty/vuk.git
+[submodule "libs/entt"]
+	path = libs/entt
+	url = https://github.com/skypjack/entt.git
+[submodule "libs/fmt"]
+	path = libs/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "libs/magic_enum"]
+	path = libs/magic_enum
+	url = https://github.com/Neargye/magic_enum.git
+[submodule "libs/tinygltf"]
+	path = libs/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
+[submodule "libs/tracy"]
+	path = libs/tracy
+	url = https://github.com/wolfpld/tracy.git
+[submodule "libs/vk-bootstrap"]
+	path = libs/vk-bootstrap
+	url = https://github.com/charles-lunarg/vk-bootstrap.git
