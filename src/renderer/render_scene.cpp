@@ -181,6 +181,21 @@ void RenderScene::setup_renderables_for_passes(vuk::Allocator& allocator) {
 }
 
 
+void RenderScene::clear_frame_allocated_renderables() {
+    for (auto it = renderables.begin(); it != renderables.end();) {
+        if (it->frame_allocated)
+            it = renderables.erase(it);
+        else
+            ++it;
+    }
+    for (auto it = widget_renderables.begin(); it != widget_renderables.end();) {
+        if (it->frame_allocated)
+            it = widget_renderables.erase(it);
+        else
+            ++it;
+    }
+}
+
 void RenderScene::pre_render() {
     if (viewport.size.x < 2 || viewport.size.y < 2) {
         update_size(v2i(2, 2));

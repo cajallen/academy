@@ -6,10 +6,7 @@
 
 namespace spellbook {
 
-void EditorScene::settings_window(bool* p_open) {
-	if (ImGui::Begin((name + " Info").c_str(), p_open)) {	    
-	}
-    ImGui::End();
+void EditorScene::info_window(bool* p_open) {
 }
 
 void EditorScene::output_window(bool* p_open) {

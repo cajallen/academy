@@ -251,21 +251,8 @@ void Renderer::render() {
     present_to_one(*context, std::move(result));
     imgui_images.clear();
 
-    for (auto scene : scenes) {
-        for (auto it = scene->renderables.begin(); it != scene->renderables.end();) {
-            if (it->frame_allocated)
-                it = scene->renderables.erase(it);
-            else
-                ++it;
-        }
-        for (auto it = scene->widget_renderables.begin(); it != scene->widget_renderables.end();) {
-            if (it->frame_allocated)
-                it = scene->widget_renderables.erase(it);
-            else
-                ++it;
-        }
-    }
-
+    for (auto scene : scenes)
+        scene->clear_frame_allocated_renderables();
     get_gpu_asset_cache().clear_frame_allocated_assets();
     frame_allocator.reset();
 
@@ -305,16 +292,14 @@ void Renderer::resize(v2i new_size) {
         suspend = true;
         return;
     }
-    suspend = false;
-    context->wait_idle();
-    global_allocator->deallocate(swapchain->image_views);
     global_allocator->deallocate({&swapchain->swapchain, 1});
+    global_allocator->deallocate(swapchain->image_views);
     context->remove_swapchain(swapchain);
-    auto new_swapchain = context->add_swapchain(make_swapchain(vkbdevice, swapchain));
+    swapchain = context->add_swapchain(make_swapchain(vkbdevice, swapchain));
     for (auto& iv : swapchain->image_views) {
         context->set_name(iv.payload, "Swapchain ImageView");
     }
-    swapchain = new_swapchain;
+    suspend = false;
 }
 
 

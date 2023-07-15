@@ -1,9 +1,14 @@
 #include "asset_editor.hpp"
 
+#include <imgui/imgui.h>
+#include <imgui/misc/cpp/imgui_stdlib.h>
+
+#include "extension/imgui_extra.hpp"
 #include "extension/icons/font_awesome4.h"
 #include "editor/editor.hpp"
 #include "game/input.hpp"
 #include "game/game_file.hpp"
+#include "game/process_launch.hpp"
 
 namespace spellbook {
 
@@ -84,8 +89,21 @@ void asset_tab(AssetEditor& asset_editor, const string& name, AssetEditor::Tab t
     }
 }
 
-void AssetEditor::window(bool* p_open) {
-    if (ImGui::Begin("Asset Editor", p_open)) {
+void AssetEditor::info_window(bool* p_open) {
+    if (ImGui::Begin("Asset Editor Info", p_open)) {
+
+        if (ImGui::Button("Spawn Server")) {
+            launch_subprocess("src/academy_server.exe");
+        }
+
+        if (ImGui::Button("Spawn Client")) {
+            launch_subprocess("src/academy_client.exe");
+        }
+
+        ImGui::Separator();
+        ImGui::Separator();
+        ImGui::Separator();
+
         if (ImGui::BeginTabBar("Asset Types", ImGuiTabBarFlags_FittingPolicyScroll)) {
             asset_tab(*this, ICON_FA_CODEPEN " Mesh", Tab_Mesh, &mesh_cpu);
             asset_tab(*this, ICON_FA_TINT " Material", Tab_Material, &material_cpu);

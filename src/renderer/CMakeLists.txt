@@ -24,4 +24,3 @@ add_library(renderer
 
 target_link_libraries(renderer PUBLIC archive academy_libs academy_src)
 target_precompile_headers(renderer PUBLIC ../archive/general/global.hpp)
-target_compile_definitions(renderer PUBLIC IMGUI_USER_CONFIG=\"imgui_config.h\")

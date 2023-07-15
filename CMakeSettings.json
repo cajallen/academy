@@ -13,7 +13,7 @@
       "variables": [
         {
           "name": "VUK_DEBUG_ALLOCATIONS",
-          "value": "True",
+          "value": "False",
           "type": "BOOL"
         }
       ]

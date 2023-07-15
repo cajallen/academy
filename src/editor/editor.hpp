@@ -5,8 +5,6 @@
 
 namespace spellbook {
 
-struct GameScene;
-
 struct Editor {
     GUI      gui;
     

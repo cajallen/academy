@@ -101,15 +101,11 @@ void GUI::update() {
     if (*(p_open = window_open("demo")))
         ImGui::ShowDemoWindow(p_open);
 
-    for (int i = 0; i < get_editor_scenes().size(); i++) {
-        if (*(p_open = window_open(get_editor_scenes()[i]->name)))
-            get_editor_scenes()[i]->window(p_open);
-    }
     if (*(p_open = window_open("console")))
         Console::window(p_open);
     for (auto& scene : get_editor_scenes()) {
         if (*(p_open = window_open(scene->name + " info")))
-            scene->settings_window(p_open);
+            scene->info_window(p_open);
     }
     for (auto& scene : get_editor_scenes()) {
         if (*(p_open = window_open(scene->name + " output")))

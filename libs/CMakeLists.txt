@@ -14,7 +14,13 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/glfw/glfw
     GIT_TAG master
 )
-FetchContent_MakeAvailable(glfw)
+FetchContent_Declare(
+    enet
+    GIT_REPOSITORY https://github.com/JuanDiegoMontoya/enet.git
+    GIT_TAG        683d6eef18823173cd55a6014e68203dc4a0845d
+    GIT_SHALLOW ON
+)
+FetchContent_MakeAvailable(glfw enet)
 
 
 # manual libs
@@ -51,6 +57,11 @@ target_link_libraries(academy_libs INTERFACE
     robin_hood
     fmt
 )
-target_include_directories(academy_libs INTERFACE tracy/public)
-target_include_directories(academy_libs INTERFACE entt/src)
+target_include_directories(academy_libs INTERFACE 
+    tracy/public
+    entt/src
+    ${enet_SOURCE_DIR}/include
+)
 target_include_directories(academy_libs INTERFACE .)
+target_compile_definitions(academy_libs INTERFACE IMGUI_USER_CONFIG=\"imgui_config.h\")
+target_compile_definitions(academy_libs INTERFACE FONT_ICON_FILE_NAME_FA=\"fa.ttf\")

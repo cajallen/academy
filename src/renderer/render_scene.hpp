@@ -97,6 +97,7 @@ struct RenderScene {
 
     void upload_buffer_objects(vuk::Allocator& frame_allocator);
     void setup_renderables_for_passes(vuk::Allocator& allocator);
+    void clear_frame_allocated_renderables();
     void prune_emitters();
     void add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg);
     void add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg);
