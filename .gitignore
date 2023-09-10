@@ -3,3 +3,5 @@
 .idea/
 out/build/
 cmake-build-debug-visual-studio/
+resources/
+external_resources/

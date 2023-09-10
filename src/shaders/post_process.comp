@@ -10,7 +10,7 @@ layout(binding = 2) uniform sampler2D s_normal;
 layout(binding = 3) uniform sampler2D s_depth;
 layout(binding = 4) uniform sampler2D s_widget;
 layout(binding = 5) uniform sampler2D s_widget_depth;
-layout(binding = 6) uniform sampler2D s_sun_depth;
+layout(binding = 6) uniform sampler3D s_voxelization;
 layout(binding = 7, rgba16f) uniform writeonly image2D u_target;
 
 layout(constant_id = 0) const int target_width	= 0;
@@ -119,104 +119,11 @@ InputRead read_inputs(ivec2 coord) {
     return data;
 }
 
-bool check_skip(float value, vec2 coord, ivec2 offset, float comparison) {
-    ivec2 max_coord = textureSize(s_sun_depth, 0);
-    if (coord.x + offset.x < 0 || coord.y + offset.y < 0) {
-        return true;
-    }
-    if (coord.x + offset.x >= max_coord.x|| coord.y + offset.y >= max_coord.y) {
-        return true;
-    }
-
-    float read = texelFetch(s_sun_depth,ivec2(coord)+offset,0).r;
-    float other = comparison < read ? 0.0 : 1.0;
-    return other < 0.5 && (abs(other - value) < 0.5);
-}
-
-bool diag_shadow(inout float sum, vec2 coord, ivec2 offset1, ivec2 offset2, float thickness, float comparison) {
-    ivec2 max_coord = textureSize(s_sun_depth, 0);
-    if (coord.x + offset1.x < 0 || coord.x + offset2.x < 0 || coord.y + offset1.y < 0 || coord.y + offset2.y < 0) {
-        sum = 1.0;
-        return false;
-    }
-    if (coord.x + offset1.x >= max_coord.x || coord.x + offset2.x >= max_coord.x || coord.y + offset1.y >= max_coord.y || coord.y + offset2.y >= max_coord.y) {
-        sum = 1.0;
-        return false;
-    }
-
-    vec4 v1 = texelFetch(s_sun_depth, ivec2(coord)+offset1, 0);
-    vec4 v2 = texelFetch(s_sun_depth, ivec2(coord)+offset2, 0);
-    
-    float f1 = comparison < (v1.r) ? 0.0 : 1.0;
-    float f2 = comparison < (v2.r) ? 0.0 : 1.0;
-    
-    if (abs(f1 - f2) < 0.1) {
-    	vec2 dir = vec2(offset2-offset1);
-        vec2 lp = coord-(floor(coord+vec2(offset1))+0.5);
-    	dir = normalize(vec2(dir.y,-dir.x));
-        float l = clamp((thickness-dot(lp,dir))*15.0,0.0,1.0);
-        sum = mix(sum,f1,l);
-    	return true;
-    }
-    return false;
-}
-
 float max(vec2 v) {
     return max(v.x, v.y);
 }
 
-float shaded(InputRead data) {
-    vec4 h_position_lightspace = light_vp * vec4(data.position, 1.0);
-    vec3 position_lightspace = h_position_lightspace.xyz / h_position_lightspace.w;
-    vec2 uv = position_lightspace.xy * 0.5 + vec2(0.5);
-    
-    //float slope_bias = 0.05;
-    const float maxBias = 0.04;
-    const float quantize = 1.0 / (1 << 16);
-    float b = length(1.0 / textureSize(s_sun_depth, 0));
-    float bias = quantize + b * length(cross(sun_data.xyz, data.normal)) / clamp(dot(sun_data.xyz, data.normal), 0.01, 1.0);
-
-    if (uv.x < 0.0 || uv.x >= 1.0 || uv.y < 0.0 || uv.y >= 1.0 || position_lightspace.z < 0.01)
-        return 1.0;
-    
-    float world_read_depth = texture(s_sun_depth, uv).r;
-    bias = min(bias, maxBias) + 0.001f * (1.0f - world_read_depth);
-    float world_position_depth = position_lightspace.z + bias;
-
-    float shaded_amount = world_position_depth < world_read_depth ? 0.0 : 1.0;
-
-    if (!check_skip(shaded_amount, uv * vec2(4096.0), ivec2(-1, 1), world_position_depth)) {
-        if (diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2(-1, 0), ivec2( 0, 1), 0.38197, world_position_depth)) {
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2(-1, 0), ivec2( 1, 1), 0.25, world_position_depth);
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2(-1,-1), ivec2( 0, 1), 0.25, world_position_depth);
-        }
-    }
-    if (!check_skip(shaded_amount, uv * vec2(4096.0), ivec2( 1, 1), world_position_depth)) {
-        if (diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 0, 1), ivec2( 1, 0), 0.38197, world_position_depth)) {
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 0, 1), ivec2( 1,-1), 0.25, world_position_depth);
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2(-1, 1), ivec2( 1, 0), 0.25, world_position_depth);
-        }
-    }
-    if (!check_skip(shaded_amount, uv * vec2(4096.0), ivec2( 1,-1), world_position_depth)) {
-        if (diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 1, 0), ivec2( 0,-1), 0.38197, world_position_depth)) {
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 1, 0), ivec2(-1,-1), 0.25, world_position_depth);
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 1, 1), ivec2( 0,-1), 0.25, world_position_depth);
-        }
-    }
-    if (!check_skip(shaded_amount, uv * vec2(4096.0), ivec2(-1,-1), world_position_depth)) {
-        if (diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 0,-1), ivec2(-1, 0), 0.38197, world_position_depth)) {
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 0,-1), ivec2(-1, 1), 0.25, world_position_depth);
-            diag_shadow(shaded_amount, uv * vec2(4096.0), ivec2( 1,-1), ivec2(-1, 0), 0.25, world_position_depth);
-        } 
-    }
-    return clamp(shaded_amount, 0.0, 1.0);
-}
-
-
-
 vec3 calculate_lighting(InputRead data, float amb_factor, float diff_factor) {
-    float shadow = shaded(data);
-
     vec3 to_light = normalize(sun_data.xyz);
     vec3 view_dir = normalize(data.position - camera_position.xyz);
     vec3 reflection_dir = reflect(to_light, data.normal);
@@ -230,12 +137,22 @@ vec3 calculate_lighting(InputRead data, float amb_factor, float diff_factor) {
     vec3 diffuse = data.color * clamp(NdotL, 0.0, 1.0) * diff_factor;
     vec3 specular = vec3(0.0);
 
-    return shadow * (diffuse + specular) + ambient + data.emissive;
+    return (diffuse + specular) + ambient + data.emissive;
 }
 
 vec3 fog(vec3 color, float depth) {
     float x = 1.0 - exp(-(depth-4.0) / 300.0);
     return mix(color, vec3(0.4, 0.5, 0.6), x);
+}
+
+vec3 trace_voxelization(InputRead data) {
+    vec4 origin_hpos = inverse_vp * vec4(data.uv.x, data.uv.y, 0.9999f, 1.0f);
+    vec4 end_hpos    = inverse_vp * vec4(data.uv.x, data.uv.y, 0.0001f, 1.0f);
+
+    vec3 origin      = origin_hpos.xyz / origin_hpos.w;
+    vec3 dir         = normalize(end_hpos.xyz / end_hpos.w - origin);
+
+    return texture(s_voxelization, origin + dir).rgb;
 }
 
 layout (local_size_x = 8, local_size_y = 8) in;
@@ -272,6 +189,9 @@ void main() {
             break;
         case 4:
             imageStore(u_target, coord, vec4(linear_to_srgb(data.normal), 1.0));
-            break; 
+            break;
+        case 5:
+            imageStore(u_target, coord, vec4(trace_voxelization(data), 1.0));
+            break;
     }
 }

@@ -22,17 +22,17 @@
 namespace spellbook {
 
 void RenderScene::setup(vuk::Allocator& allocator) {
-    scene_data.ambient               = Color(palette::white, 0.15f);
+    scene_data.ambient               = Color(palette::white, 0.2f);
     scene_data.fog_color             = palette::black;
     scene_data.fog_depth             = -1.0f;
     scene_data.sun_direction         = quat(0.2432103f, 0.3503661f, 0.0885213f, 0.9076734f);
     scene_data.sun_intensity         = 1.0f;
 
-    MeshCPU cube = generate_cube(v3(0.0f, 0.0f, 0.0f), v3(1.0f, 1.0f, 1.0f));
-    MaterialCPU white_material{.color_tint = palette::white};
-    white_material.file_path = FilePath("white_mat", true);
-    uint64 mat_id = upload_material(white_material);
-    quick_renderable(cube, mat_id, false);
+    voxelization_camera.position = v3(-5.0f, 0.0f, 0.0f);
+    voxelization_camera.heading = euler{.yaw = 0.0f, .pitch = 0.0f};
+    voxelization_camera.view_dirty = true;
+    voxelization_camera.proj = math::orthographic(v3{10.0f, 10.0f, 10.0f});
+    voxelization_camera.proj_dirty = false;
 }
 
 void RenderScene::image(v2i size) {
@@ -75,29 +75,33 @@ void RenderScene::upload_buffer_objects(vuk::Allocator& allocator) {
     struct CameraData {
         m44GPU vp;
     };
-    CameraData cam_data;
-    cam_data.vp     = m44GPU(viewport.camera->vp);
-    CameraData sun_cam_data;
-    v3 sun_vec = math::normalize(math::rotate(scene_data.sun_direction, v3::Z));
-    sun_cam_data.vp     = m44GPU(math::orthographic(v3(30.0f, 30.0f, 40.0f)) * math::look(sun_vec * 25.0f, -sun_vec, v3::Z));
+    CameraData camera_data;
+    camera_data.vp     = m44GPU(viewport.camera->vp);
 
-    auto [pubo_camera, fubo_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&cam_data, 1));
+    CameraData voxelization_camera_data;
+    voxelization_camera_data.vp     = m44GPU(voxelization_camera.vp);
+
+    CameraData sun_camera_data;
+    v3 sun_vec = math::normalize(math::rotate(scene_data.sun_direction, v3::Z));
+    sun_camera_data.vp     = m44GPU(math::orthographic(v3(30.0f, 30.0f, 40.0f)) * math::look(sun_vec * 25.0f, -sun_vec, v3::Z));
+
+    auto [pubo_camera, fubo_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&camera_data, 1));
     buffer_camera_data              = *pubo_camera;
-    
-    auto [pubo_sun_camera, fubo_sun_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&sun_cam_data, 1));
-    buffer_sun_camera_data              = *pubo_sun_camera;
+
+    auto [pubo_voxelization_camera, fubo_voxelization_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&voxelization_camera_data, 1));
+    buffer_voxelization_camera = *pubo_voxelization_camera;
 
     struct CompositeData {
         m44GPU inverse_vp;
         v4 camera_position;
-        
+
         m44GPU light_vp;
         v4 sun_data;
         v4 ambient;
     } composite_data;
     composite_data.inverse_vp = m44GPU(math::inverse(viewport.camera->vp));
     composite_data.camera_position = v4(viewport.camera->position, 1.0f);
-    composite_data.light_vp = sun_cam_data.vp;
+    composite_data.light_vp = sun_camera_data.vp;
     composite_data.sun_data = v4(sun_vec, 1.0f);
     composite_data.ambient = v4(scene_data.ambient);
 
@@ -206,8 +210,8 @@ vuk::Future RenderScene::render(vuk::Allocator& frame_allocator, vuk::Future tar
     
     post_process_data.time = Input::time;
 
+    add_voxelization_pass(rg);
     add_emitter_update_pass(rg);
-    add_sundepth_pass(rg);
     add_forward_pass(rg);
     add_widget_pass(rg);
     add_postprocess_pass(rg);
@@ -228,41 +232,42 @@ void RenderScene::prune_emitters() {
     });
 }
 
-void RenderScene::add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg) {
+void RenderScene::add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg) {
+    ZoneScoped;
+
     rg->add_pass({
-        .name = "sun_depth",
+        .name = "voxelization",
         .resources = {
-            "sun_depth_input"_image   >> vuk::eDepthStencilRW >> "sun_depth_output"
+            "voxelization_input"_image >> vuk::eFragmentWrite >> "voxelization"
         },
         .execute = [this](vuk::CommandBuffer& command_buffer) {
-            ZoneScoped;
-            // Prepare render
             command_buffer.set_dynamic_state(vuk::DynamicStateFlagBits::eViewport | vuk::DynamicStateFlagBits::eScissor)
-                .set_viewport(0, vuk::Rect2D{vuk::Sizing::eAbsolute, {}, {4096, 4096}})
-                .set_scissor(0, vuk::Rect2D{vuk::Sizing::eAbsolute, {}, {4096, 4096}})
-                .set_depth_stencil(vuk::PipelineDepthStencilStateCreateInfo {
-                    .depthTestEnable  = true,
-                    .depthWriteEnable = true,
-                    .depthCompareOp   = vuk::CompareOp::eGreaterOrEqual, // EQUAL can be used for multipass things
-                })
-                .broadcast_color_blend({vuk::BlendPreset::eOff});
-                
-            command_buffer
-                .bind_buffer(0, CAMERA_BINDING, buffer_sun_camera_data)
-                .bind_buffer(0, MODEL_BINDING, buffer_model_mats)
-                .bind_buffer(0, ID_BINDING, buffer_ids);
+                    .set_viewport(0, vuk::Rect2D{.extent={64, 64}})
+                    .set_scissor(0, vuk::Rect2D{.extent={64, 64}})
+                    .set_depth_stencil(vuk::PipelineDepthStencilStateCreateInfo {
+                            .depthTestEnable  = false,
+                            .depthWriteEnable = false
+                    })
+                    .broadcast_color_blend({vuk::BlendPreset::eOff})
+                    .set_rasterization({.cullMode = vuk::CullModeFlagBits::eNone});
 
             command_buffer
-                .set_rasterization({.cullMode = vuk::CullModeFlagBits::eNone})
-                .bind_graphics_pipeline("directional_depth");
-    
+                    .bind_buffer(0, CAMERA_BINDING, buffer_voxelization_camera)
+                    .bind_buffer(0, MODEL_BINDING, buffer_model_mats);
+
+            command_buffer.bind_image(0, 8, "voxelization");
+
             int item_index = 0;
             for (const auto& [mat_hash, mat_map] : renderables_built) {
+                MaterialGPU* material = get_gpu_asset_cache().materials.contains(mat_hash) ? &get_gpu_asset_cache().materials[mat_hash] : nullptr;
+                command_buffer.bind_graphics_pipeline(get_renderer().context->get_named_pipeline("voxelization"));
+                material->bind_parameters(command_buffer);
+                material->bind_textures(command_buffer);
                 for (const auto& [mesh_hash, mesh_list] : mat_map) {
                     MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
                     command_buffer
-                        .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-                        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
+                            .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
+                            .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
                     command_buffer.draw_indexed(mesh->index_count, mesh_list.size(), 0, 0, item_index);
                     item_index += mesh_list.size();
                 }
@@ -270,7 +275,14 @@ void RenderScene::add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg) {
         }
     });
 
-    rg->attach_and_clear_image("sun_depth_input", {.extent = {.extent = {4096, 4096, 1}}, .format = vuk::Format::eD16Unorm, .sample_count = vuk::Samples::e1}, vuk::ClearDepthStencil{0.0f, 0});
+    vuk::ImageAttachment voxelization_format = {
+        .image_type = vuk::ImageType::e3D,
+        .extent = {.extent = {64, 64, 64}},
+        .format = vuk::Format::eR16G16B16A16Sfloat,
+        .sample_count = vuk::Samples::e1,
+        .view_type = vuk::ImageViewType::e3D
+    };
+    rg->attach_and_clear_image("voxelization_input", voxelization_format, vuk::ClearColor(0.0f, 0.0f, 0.0f, 0.0f));
 }
 
 void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
@@ -388,7 +400,7 @@ void RenderScene::add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg) {
         "depth_output"_image   >> vuk::eComputeSampled,
         "widget_output"_image >> vuk::eComputeSampled,
         "widget_depth_output"_image >> vuk::eComputeSampled,
-        "sun_depth_output"_image >> vuk::eComputeSampled,
+        "voxelization"_image >> vuk::eComputeSampled,
         "target_input"_image   >> vuk::eComputeWrite >> "target_output",
     },
     .execute =
@@ -397,15 +409,14 @@ void RenderScene::add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg) {
             cmd.bind_compute_pipeline("postprocess");
 
             auto sampler = Sampler().filter(Filter_Linear).get();
-            auto sun_sampler = Sampler().filter(Filter_Nearest).address(Address_Border).get();
-            sun_sampler.borderColor = vuk::BorderColor::eFloatTransparentBlack;
+            auto voxel_sampler = Sampler().filter(Filter_Nearest).get();
             cmd.bind_image(0, 0, "base_color_output").bind_sampler(0, 0, sampler);
             cmd.bind_image(0, 1, "emissive_output").bind_sampler(0, 1, sampler);
             cmd.bind_image(0, 2, "normal_output").bind_sampler(0, 2, sampler);
             cmd.bind_image(0, 3, "depth_output").bind_sampler(0, 3, sampler);
             cmd.bind_image(0, 4, "widget_output").bind_sampler(0, 4, sampler);
             cmd.bind_image(0, 5, "widget_depth_output").bind_sampler(0, 5, sampler);
-            cmd.bind_image(0, 6, "sun_depth_output").bind_sampler(0, 6, sun_sampler);
+            cmd.bind_image(0, 6, "voxelization").bind_sampler(0, 6, voxel_sampler);
             cmd.bind_image(0, 7, "target_input");
 
             cmd.bind_buffer(0, 8, buffer_composite_data);

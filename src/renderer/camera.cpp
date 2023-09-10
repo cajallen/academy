@@ -32,7 +32,7 @@ Camera::Camera(v3 pos, euler rot) {
 
 void Camera::update_proj() {
 	// console({.s=fmt_("Updated Proj on {:}", *this), .g="Camera", .c = Color(0.8f, 1.0f), .p = false});
-	proj	   = math::perspective(math::d2r(fov / 2.0f), aspect_xy, clip_plane);
+	proj	   = math::perspective(fov / 2.0f, aspect_xy, clip_plane);
 	proj_dirty = false;
 }
 

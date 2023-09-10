@@ -184,6 +184,7 @@ fs::path _convert_to_relative(const fs::path& path) {
 template<>
 ModelCPU& load_resource(const FilePath& input_path, bool assert_exists, bool clear_cache) {
     fs::path absolute_path = input_path.abs_path();
+    // TODO: clear dependencies
     if (clear_cache && cpu_resource_cache<ModelCPU>().contains(input_path))
         cpu_resource_cache<ModelCPU>().erase(input_path);
     if (cpu_resource_cache<ModelCPU>().contains(input_path))
@@ -249,7 +250,7 @@ bool _convert_gltf_meshes(tinygltf::Model& model, const FilePath& output_folder)
 bool _convert_gltf_materials(tinygltf::Model& model, const FilePath& output_folder);
 m44 _calculate_matrix(tinygltf::Node& node);
 
-ModelCPU convert_to_model(const FilePath& input_path, const FilePath& output_folder, const string& output_name, bool y_up, bool replace_existing_poses) {
+ModelCPU convert_to_model(const FilePath& input_path, const FilePath& output_folder, const string& output_name, bool y_up) {
     ZoneScoped;
     // TODO: gltf can't support null materials
     // TODO: create dir
@@ -257,7 +258,7 @@ ModelCPU convert_to_model(const FilePath& input_path, const FilePath& output_fol
     fs::path output_folder_path = output_folder.abs_path();
 
     const auto& ext = input_path.rel_path().extension().string();
-    assert_else(ModelCPU::path_filter()(input_path.abs_path()))
+    assert_else(ModelExternal::path_filter()(input_path))
         return {};
     tinygltf::Model    gltf_model;
     tinygltf::TinyGLTF loader;
@@ -278,7 +279,8 @@ ModelCPU convert_to_model(const FilePath& input_path, const FilePath& output_fol
     fs::path model_fs_path = output_folder_path / output_name;
     model_fs_path.replace_extension(ModelCPU::extension());
     model_cpu.file_path = FilePath(model_fs_path);
-    
+
+    fs::create_directories(output_folder.abs_string());
     _convert_gltf_meshes(gltf_model, output_folder);
     _convert_gltf_materials(gltf_model, output_folder);
     
@@ -725,10 +727,10 @@ bool _convert_gltf_materials(tinygltf::Model& model, const FilePath& output_fold
             (float) pbr.baseColorFactor[1],
             (float) pbr.baseColorFactor[2],
             (float) pbr.baseColorFactor[3]);
-        material_cpu.emissive_tint    = material_cpu.emissive_asset_path == FilePath("white", true) ? palette::black : palette::white;
+        material_cpu.emissive_tint    = material_cpu.emissive_asset_path == "textures/white.sbjtex"_rp ? palette::black : palette::white;
         material_cpu.roughness_factor = pbr.roughnessFactor;
         material_cpu.metallic_factor  = pbr.metallicFactor;
-        material_cpu.normal_factor    = material_cpu.normal_asset_path == FilePath("white", true) ? 0.0f : 0.5f;
+        material_cpu.normal_factor    = material_cpu.normal_asset_path == "textures/white.sbjtex"_rp ? 0.0f : 0.5f;
         fs::path material_path        = output_folder_path / (matname + string(MaterialCPU::extension()));
         material_cpu.file_path        = FilePath(material_path);
 

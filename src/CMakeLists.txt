@@ -3,14 +3,15 @@ add_subdirectory(archive)
 add_subdirectory(renderer)
 
 add_library(academy_src
-    editor/asset_browser.cpp
+	editor/file_browser.cpp
     editor/console.cpp
     editor/editor.cpp
     editor/editor_scene.cpp
 	editor/gui.cpp
     editor/pose_widget.cpp
     editor/widget_system.cpp
-    editor/asset_editor.cpp
+	editor/resource_editor.cpp
+	editor/camera_controller.cpp
     game/game_scene.cpp
     game/process_launch.cpp
 	game/game_display.cpp

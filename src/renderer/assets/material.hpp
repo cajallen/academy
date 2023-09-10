@@ -17,6 +17,8 @@ struct PipelineBaseInfo;
 
 namespace spellbook {
 
+struct RenderScene;
+
 // This should really be MaterialPrefab, and we should convert the paths into ids for a MaterialCPU
 struct MaterialCPU : Resource {
     Color color_tint       = palette::white;
@@ -25,10 +27,10 @@ struct MaterialCPU : Resource {
     float   metallic_factor  = 0.0f;
     float   normal_factor    = 0.0f;
 
-    FilePath color_asset_path    = "textures/white.sbtex"_rp;
-    FilePath orm_asset_path      = "textures/white.sbtex"_rp;
-    FilePath normal_asset_path   = "textures/white.sbtex"_rp;
-    FilePath emissive_asset_path = "textures/white.sbtex"_rp;
+    FilePath color_asset_path    = "textures/white.sbjtex"_rp;
+    FilePath orm_asset_path      = "textures/white.sbjtex"_rp;
+    FilePath normal_asset_path   = "textures/white.sbjtex"_rp;
+    FilePath emissive_asset_path = "textures/white.sbjtex"_rp;
 
     Sampler sampler = Sampler().address(Address_Mirrored).anisotropy(true);
 
@@ -39,8 +41,8 @@ struct MaterialCPU : Resource {
     static constexpr string_view extension() { return ".sbjmat"; }
     static constexpr string_view dnd_key() { return "DND_MATERIAL"; }
     static constexpr FileCategory file_category() { return FileCategory_Json; }
-    static string folder() { return (get_resource_folder()).abs_string(); }
-    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == MaterialCPU::extension(); }; }
+    static FilePath folder() { return get_resource_folder(); }
+    static std::function<bool(const FilePath&)> path_filter() { return [](const FilePath& path) { return path.extension() == MaterialCPU::extension(); }; }
 };
 
 JSON_IMPL(MaterialCPU, color_tint, roughness_factor, metallic_factor, normal_factor, emissive_tint, color_asset_path,
@@ -72,7 +74,7 @@ struct MaterialGPU {
     void update_from_cpu(const MaterialCPU& new_material);
 };
 
-bool inspect(MaterialCPU* material);
+bool inspect(MaterialCPU* material, RenderScene* render_scene = nullptr);
 void inspect(MaterialGPU* material);
 
 uint64 upload_material(const MaterialCPU&, bool frame_allocation = false);

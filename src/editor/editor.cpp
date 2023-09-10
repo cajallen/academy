@@ -7,19 +7,15 @@
 #include "game/game_scene.hpp"
 #include "editor/console.hpp"
 #include "editor/editor_scene.hpp"
-#include "editor/asset_editor.hpp"
+#include "editor/resource_editor.hpp"
 
 namespace fs = std::filesystem;
 
 namespace spellbook {
 
-ADD_EDITOR_SCENE(AssetEditor);
+ADD_EDITOR_SCENE(ResourceEditor);
 
 void Editor::startup() {
-    external_resource_folder = (fs::current_path() / "external_resources").string();
-    resource_folder = (fs::current_path() / "resources").string();
-    user_folder = (fs::current_path() / "user").string();
-
     Console::setup();
     get_renderer().setup();
     Input::setup(get_renderer().window);

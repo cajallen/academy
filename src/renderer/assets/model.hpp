@@ -26,8 +26,8 @@ struct ModelExternal {
     static constexpr string_view extension() { return "?"; }
     static constexpr string_view dnd_key() { return "DND_MODEL_EXTERNAL"; }
     static constexpr FileCategory file_category() { return FileCategory_Other; }
-    static string folder() { return (get_resource_folder()).abs_string(); }
-    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return vector<string>{".glb", ".gltf"}.contains(path.extension().string()); }; }
+    static FilePath folder() { return get_external_resource_folder(); }
+    static std::function<bool(const FilePath&)> path_filter() { return [](const FilePath& path) { return vector<string>{".glb", ".gltf"}.contains(path.extension()); }; }
 };
 
 struct ModelCPU : Resource {
@@ -59,8 +59,8 @@ struct ModelCPU : Resource {
     static constexpr string_view extension() { return ".sbjmod"; }
     static constexpr string_view dnd_key() { return "DND_MODEL"; }
     static constexpr FileCategory file_category() { return FileCategory_Json; }
-    static string folder() { return (get_resource_folder() + "models").abs_string(); }
-    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == ModelCPU::extension(); }; }
+    static FilePath folder() { return get_resource_folder() + "models"; }
+    static std::function<bool(const FilePath&)> path_filter() { return [](const FilePath& path) { return path.extension() == ModelCPU::extension(); }; }
 };
 
 JSON_IMPL(ModelCPU::Node, name, mesh_asset_path, material_asset_path, transform, parent, children);

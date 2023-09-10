@@ -7,7 +7,7 @@
 #include "general/input.hpp"
 #include "editor/editor.hpp"
 #include "editor/console.hpp"
-#include "editor/asset_browser.hpp"
+#include "editor/file_browser.hpp"
 #include "editor/editor_scene.hpp"
 #include "editor/widget_system.hpp"
 #include "game/game_scene.hpp"
@@ -18,28 +18,25 @@ namespace fs = std::filesystem;
 namespace spellbook {
 
 void GUI::setup() {
-    fs::path gui_file = fs::path(get_editor().user_folder) / ("gui" + string(Resource::extension()));
+    fs::path gui_file = FilePath("user/").abs_path() / ("gui" + string(Resource::extension()));
 
     WidgetSystem::setup();
     if (fs::exists(gui_file)) {
         json j = parse_file(gui_file.string());
         FROM_JSON_MEMBER(windows);
         FROM_JSON_MEMBER(item_state);
-        FROM_JSON_MEMBER(asset_browser_file);
-        if (!fs::exists(fs::path(asset_browser_file))) {
-            asset_browser_file = fs::current_path().string();
-        }
+        FROM_JSON_MEMBER(file_browser_path);
     }
 }
 
 void GUI::shutdown() {
-    fs::path gui_file = fs::path(get_editor().user_folder) / ("gui" + string(Resource::extension()));
+    fs::path gui_file = FilePath("user/").abs_path() / ("gui" + string(Resource::extension()));
     fs::create_directories(gui_file.parent_path());
     
     auto j = json();
     TO_JSON_MEMBER(windows);
     TO_JSON_MEMBER(item_state);
-    TO_JSON_MEMBER(asset_browser_file);
+    TO_JSON_MEMBER(file_browser_path);
     file_dump(j, gui_file.string());
 }
 
@@ -115,10 +112,8 @@ void GUI::update() {
         get_renderer().debug_window(p_open);
     if (*(p_open = window_open("colors")))
         color_window(p_open);
-    if (*(p_open = window_open("asset_browser"))) {
-        std::filesystem::path asset_browser_path = asset_browser_file.empty() ? get_editor().external_resource_folder : asset_browser_file;
-        asset_browser("Asset Browser", p_open, &asset_browser_path);
-        asset_browser_file = asset_browser_path.string();
+    if (*(p_open = window_open("file_browser"))) {
+        file_browser("File Browser", p_open, &file_browser_path);
     }
 }
 

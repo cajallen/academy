@@ -73,7 +73,7 @@ void MaterialGPU::update_from_cpu(const MaterialCPU& new_material) {
 
 
 
-bool inspect(MaterialCPU* material) {
+bool inspect(MaterialCPU* material, RenderScene* render_scene) {
     bool changed = false;
     ImGui::PathSelect<MaterialCPU>("File", &material->file_path);
 

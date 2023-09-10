@@ -31,6 +31,7 @@ enum DebugDrawMode {
     DebugDrawMode_Position,
     DebugDrawMode_Normal,
     DebugDrawMode_Depth,
+    DebugDrawMode_Voxelization,
     DebugDrawMode_None
 };
 
@@ -67,8 +68,7 @@ struct RenderScene {
     vuk::Texture render_target;
 
     vuk::Buffer buffer_camera_data;
-    vuk::Buffer buffer_sun_camera_data;
-    vuk::Buffer buffer_top_camera_data;
+    vuk::Buffer buffer_voxelization_camera;
     vuk::Buffer buffer_composite_data;
     vuk::Buffer buffer_model_mats;
     vuk::Buffer buffer_ids;
@@ -78,6 +78,8 @@ struct RenderScene {
         m44GPU* mat;
     };
     umap<mat_id, umap<mesh_id, vector<BuiltRenderable>>> renderables_built;
+
+    Camera voxelization_camera;
 
     void update_size(v2i new_size);
     
@@ -98,7 +100,7 @@ struct RenderScene {
     Renderable& quick_renderable(uint64 mesh_id, uint64 mat_id, bool frame_allocated);
     Renderable& quick_renderable(uint64 mesh_id, const MaterialCPU& mat_id, bool frame_allocated);
 
-    void add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg);
     void add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg);
     void add_widget_pass(std::shared_ptr<vuk::RenderGraph> rg);
     void add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg);

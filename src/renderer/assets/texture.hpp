@@ -14,8 +14,8 @@ struct TextureExternal {
     static constexpr string_view extension() { return "?"; }
     static constexpr string_view dnd_key() { return "DND_TEXTURE_EXTERNAL"; }
     static constexpr FileCategory file_category() { return FileCategory_Other; }
-    static string folder() { return (get_resource_folder()).abs_string(); }
-    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return vector<string>{".png", ".jpg", ".jpeg"}.contains(path.extension().string()); }; }
+    static FilePath folder() { return get_external_resource_folder(); }
+    static std::function<bool(const FilePath&)> path_filter() { return [](const FilePath& path) { return vector<string>{".png", ".jpg", ".jpeg"}.contains(path.extension()); }; }
 };
 
 struct TextureInfo {
@@ -32,8 +32,8 @@ struct TextureCPU : Resource {
     static constexpr string_view extension() { return ".sbatex"; }
     static constexpr string_view dnd_key() { return "DND_TEXTURE"; }
     static constexpr FileCategory file_category() { return FileCategory_Asset; }
-    static string folder() { return (get_resource_folder()).abs_string(); }
-    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == Resource::extension(); }; }
+    static FilePath folder() { return get_resource_folder(); }
+    static std::function<bool(const FilePath&)> path_filter() { return [](const FilePath& path) { return path.extension() == Resource::extension(); }; }
 };
 
 JSON_IMPL(TextureCPU, size, format);

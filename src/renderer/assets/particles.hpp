@@ -52,8 +52,8 @@ struct EmitterCPU : Resource {
     static constexpr string_view extension() { return ".sbjemt"; }
     static constexpr string_view dnd_key() { return "DND_EMITTER"; }
     static constexpr FileCategory file_category() { return FileCategory_Json; }
-    static string folder() { return (get_resource_folder()).abs_string(); }
-    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == EmitterCPU::extension(); }; }
+    static FilePath folder() { return get_resource_folder() + "particles"; }
+    static std::function<bool(const FilePath&)> path_filter() { return [](const FilePath& path) { return path.extension() == EmitterCPU::extension(); }; }
 };
 
 struct EmitterSettings {

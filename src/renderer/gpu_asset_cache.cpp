@@ -57,7 +57,7 @@ void GPUAssetCache::upload_defaults() {
         .format = vuk::Format::eR8G8B8A8Srgb,
         .pixels = vector<uint8>(8 * 8 * 4, 255)
     };
-    tex_white_upload.file_path = "textures/white.sbtex"_rp;
+    tex_white_upload.file_path = "textures/white.sbjtex"_rp;
     upload_texture(tex_white_upload);
 
     constexpr uint32 grid_size = 1024;
@@ -66,7 +66,7 @@ void GPUAssetCache::upload_defaults() {
         .format = vuk::Format::eR8G8B8A8Srgb,
         .pixels = vector<uint8>(grid_size * grid_size * 4, 255)
     };
-    tex_grid_upload.file_path = "textures/grid.sbtex"_rp;
+    tex_grid_upload.file_path = "textures/grid.sbjtex"_rp;
 
     // do border
     for (uint32 i = 0; i < (grid_size - 1); i++) {

@@ -178,6 +178,13 @@ void Renderer::setup() {
         context->create_named_pipeline("directional_depth", pci);
     }
 
+    {
+        vuk::PipelineBaseCreateInfo pci;
+        pci.add_glsl(get_contents(shader_path("voxelization.vert")), shader_path("voxelization.vert").abs_string());
+        pci.add_glsl(get_contents(shader_path("voxelization.frag")), shader_path("voxelization.frag").abs_string());
+        context->create_named_pipeline("voxelization", pci);
+    }
+
     get_gpu_asset_cache().upload_defaults();
 
     {

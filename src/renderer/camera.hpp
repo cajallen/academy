@@ -2,12 +2,13 @@
 
 #include "general/math/geometry.hpp"
 #include "general/math/matrix.hpp"
+#include "general/math/math.hpp"
 #include "general/file/json.hpp"
 
 namespace spellbook {
 
 struct Camera {
-    float fov        = 30.0f;
+    float fov        = math::d2r(30.0f);
     float clip_plane = 0.5f;
     float aspect_xy  = 1920.0f / 1080.0f;
 

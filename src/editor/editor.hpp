@@ -7,10 +7,6 @@ namespace spellbook {
 
 struct Editor {
     GUI      gui;
-    
-    string external_resource_folder;
-    string resource_folder;
-    string user_folder;
 
     void startup();
     void run();
