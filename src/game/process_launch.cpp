@@ -2,18 +2,18 @@
 
 #include <windows.h>
 
+#include "general/string.hpp"
+
 namespace spellbook {
 
-void launch_subprocess(const string& application_name) {
+void launch_subprocess(const FilePath& application_path) {
     STARTUPINFO si = {};   
     PROCESS_INFORMATION pi = {};
     si.cb = sizeof(si);
 
-    std::wstring temp = std::wstring(application_name.begin(), application_name.end());
-    LPCWSTR application_name_wstr = temp.c_str();
-
     // start the program up
-    CreateProcess(application_name.c_str(),
+    string abs_path = application_path.abs_string();
+    CreateProcess(abs_path.c_str(),
         nullptr,
         nullptr,
         nullptr,

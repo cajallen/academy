@@ -4,22 +4,20 @@
 #include <tracy/Tracy.hpp>
 #include <vuk/Partials.hpp>
 
-#include "extension/fmt_renderer.hpp"
 #include "extension/imgui_extra.hpp"
 #include "extension/vuk_extra.hpp"
-#include "general/file.hpp"
 #include "general/logger.hpp"
+#include "general/input.hpp"
 #include "general/math/matrix_math.hpp"
-#include "renderer/samplers.hpp"
-#include "renderer/viewport.hpp"
-#include "renderer/renderable.hpp"
-#include "renderer/draw_functions.hpp"
-#include "renderer/assets/particles.hpp"
-#include "renderer/assets/mesh_asset.hpp"
-#include "renderer/assets/material.hpp"
-#include "renderer/assets/texture.hpp"
-#include "editor/pose_widget.hpp"
-#include "game/input.hpp"
+
+#include "samplers.hpp"
+#include "viewport.hpp"
+#include "renderable.hpp"
+#include "draw_functions.hpp"
+#include "fmt_renderer.hpp"
+#include "assets/particles.hpp"
+#include "assets/material.hpp"
+#include "assets/texture.hpp"
 
 namespace spellbook {
 
@@ -31,8 +29,10 @@ void RenderScene::setup(vuk::Allocator& allocator) {
     scene_data.sun_intensity         = 1.0f;
 
     MeshCPU cube = generate_cube(v3(0.0f, 0.0f, 0.0f), v3(1.0f, 1.0f, 1.0f));
-    uint64 background_mat_name = upload_material(MaterialCPU{.file_path = "white_mat", .color_tint = palette::white});
-    quick_renderable(cube, background_mat_name, false);
+    MaterialCPU white_material{.color_tint = palette::white};
+    white_material.file_path = FilePath("white_mat", true);
+    uint64 mat_id = upload_material(white_material);
+    quick_renderable(cube, mat_id, false);
 }
 
 void RenderScene::image(v2i size) {
@@ -48,8 +48,6 @@ void RenderScene::settings_gui() {
     if (ImGui::TreeNode("Lighting")) {
         ImGui::ColorEdit4("Ambient", scene_data.ambient.data);
         uint32 id = ImGui::GetID("Sun Direction");
-        PoseWidgetSettings settings {.render_scene = *this, .disabled = 0b1 << Operation_RotateZ};
-        pose_widget(id, nullptr, &scene_data.sun_direction, settings);
         ImGui::DragFloat("Sun Intensity", &scene_data.sun_intensity, 0.01f);
         ImGui::EnumCombo("Debug Mode", &post_process_data.debug_mode);
         ImGui::TreePop();
@@ -69,10 +67,6 @@ Renderable* RenderScene::add_renderable(const Renderable& renderable) {
 
 void RenderScene::delete_renderable(Renderable* renderable) {
     renderables.erase(renderables.get_iterator(renderable));
-}
-
-void RenderScene::delete_renderable(StaticRenderable* renderable) {
-    static_renderables.erase(static_renderables.get_iterator(renderable));
 }
 
 void RenderScene::upload_buffer_objects(vuk::Allocator& allocator) {
@@ -114,39 +108,19 @@ void RenderScene::upload_buffer_objects(vuk::Allocator& allocator) {
 void RenderScene::setup_renderables_for_passes(vuk::Allocator& allocator) {
     ZoneScoped;
     renderables_built.clear();
-    rigged_renderables_built.clear();
 
     uint32 count = 0;
-
-    for (auto& renderable : static_renderables) {
-        assert_else(get_gpu_asset_cache().materials.contains(renderable.material_id))
-            continue;
-        assert_else(get_gpu_asset_cache().meshes.contains(renderable.mesh_id))
-            continue;
-
-        auto& mat_map = renderables_built.try_emplace(renderable.material_id).first->second;
-        auto& mesh_list = mat_map.try_emplace(renderable.mesh_id).first->second;
-        mesh_list.emplace_back(0, &renderable.transform);
-        count++;
-    }
     
     for (auto& renderable : renderables) {
         if (!get_gpu_asset_cache().materials.contains(renderable.material_id))
             continue;
         if (!get_gpu_asset_cache().meshes.contains(renderable.mesh_id))
             continue;
-        
-        if (renderable.skeleton == nullptr) {
-            auto& mat_map = renderables_built.try_emplace(renderable.material_id).first->second;
-            auto& mesh_list = mat_map.try_emplace(renderable.mesh_id).first->second;
-            mesh_list.emplace_back(renderable.selection_id, &renderable.transform);
-            count++;
-        } else {
-            auto& mat_map = rigged_renderables_built.try_emplace(renderable.material_id).first->second;
-            auto& mesh_list = mat_map.try_emplace(renderable.mesh_id).first->second;
-            mesh_list.emplace_back(renderable.selection_id, renderable.skeleton, &renderable.transform);
-            count++;
-        }
+
+        auto& mat_map = renderables_built.try_emplace(renderable.material_id).first->second;
+        auto& mesh_list = mat_map.try_emplace(renderable.mesh_id).first->second;
+        mesh_list.emplace_back(renderable.selection_id, &renderable.transform);
+        count++;
     }
 
     uint32 model_buffer_size = sizeof(m44GPU) * (count + widget_renderables.size());
@@ -158,15 +132,6 @@ void RenderScene::setup_renderables_for_passes(vuk::Allocator& allocator) {
     for (const auto& [mat_hash, mat_map] : renderables_built) {
         for (const auto& [mesh_hash, mesh_list] : mat_map) {
             for (auto& [id, transform] : mesh_list) {
-                memcpy((m44GPU*) buffer_model_mats.mapped_ptr + i, transform, sizeof(m44GPU));
-                *((uint32*) buffer_ids.mapped_ptr + i) = id;
-                i++;
-            }
-        }
-    }
-    for (const auto& [mat_hash, mat_map] : rigged_renderables_built) {
-        for (const auto& [mesh_hash, mesh_list] : mat_map) {
-            for (const auto& [id, skeleton, transform] : mesh_list) {
                 memcpy((m44GPU*) buffer_model_mats.mapped_ptr + i, transform, sizeof(m44GPU));
                 *((uint32*) buffer_ids.mapped_ptr + i) = id;
                 i++;
@@ -283,7 +248,6 @@ void RenderScene::add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                 .broadcast_color_blend({vuk::BlendPreset::eOff});
                 
             command_buffer
-                .bind_buffer(0, BONES_BINDING, SkeletonGPU::empty_buffer()->get())
                 .bind_buffer(0, CAMERA_BINDING, buffer_sun_camera_data)
                 .bind_buffer(0, MODEL_BINDING, buffer_model_mats)
                 .bind_buffer(0, ID_BINDING, buffer_ids);
@@ -301,18 +265,6 @@ void RenderScene::add_sundepth_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                         .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
                     command_buffer.draw_indexed(mesh->index_count, mesh_list.size(), 0, 0, item_index);
                     item_index += mesh_list.size();
-                }
-            }
-            for (const auto& [mat_hash, mat_map] : rigged_renderables_built) {
-                for (const auto& [mesh_hash, mesh_list] : mat_map) {
-                    MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
-                    command_buffer
-                        .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-                        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
-                    for (auto& [id, skeleton, transform] : mesh_list) {
-                        command_buffer.bind_buffer(0, BONES_BINDING, skeleton->buffer.get());
-                        command_buffer.draw_indexed(mesh->index_count, 1, 0, 0, item_index++);
-                    }
                 }
             }
         }
@@ -350,7 +302,6 @@ void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                 .set_color_blend("info_input", vuk::BlendPreset::eOff);
             
             command_buffer
-                .bind_buffer(0, BONES_BINDING, SkeletonGPU::empty_buffer()->get())
                 .bind_buffer(0, CAMERA_BINDING, buffer_camera_data)
                 .bind_buffer(0, MODEL_BINDING, buffer_model_mats)
                 .bind_buffer(0, ID_BINDING, buffer_ids);
@@ -372,24 +323,6 @@ void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                     item_index += mesh_list.size();
                 }
             }
-            for (const auto& [mat_hash, mat_map] : rigged_renderables_built) {
-                MaterialGPU* material = get_gpu_asset_cache().materials.contains(mat_hash) ? &get_gpu_asset_cache().materials[mat_hash] : nullptr;
-                command_buffer
-                    .set_rasterization({.cullMode = material->cull_mode})
-                    .bind_graphics_pipeline(material->pipeline);
-                material->bind_parameters(command_buffer);
-                material->bind_textures(command_buffer);
-                for (const auto& [mesh_hash, mesh_list] : mat_map) {
-                    MeshGPU* mesh = get_gpu_asset_cache().meshes.contains(mesh_hash) ? &get_gpu_asset_cache().meshes[mesh_hash] : nullptr;
-                    command_buffer
-                        .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-                        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
-                    for (auto& [id, skeleton, transform] : mesh_list) {
-                        command_buffer.bind_buffer(0, BONES_BINDING, skeleton->buffer.get());
-                        command_buffer.draw_indexed(mesh->index_count, 1, 0, 0, item_index++);
-                    }
-                }
-            }            
             
             for (auto& emitter : emitters) {
                 render_particles(emitter, command_buffer);
@@ -532,11 +465,12 @@ void widget_setup() {
         return;
     initialized = true;
     vuk::PipelineBaseCreateInfo pci;
-    pci.add_glsl(get_contents("shaders/widget.vert"), "shaders/widget.vert");
-    pci.add_glsl(get_contents("shaders/widget.frag"), "shaders/widget.frag");
+    pci.add_glsl(get_contents(shader_path("widget.vert")), shader_path("widget.vert").abs_string());
+    pci.add_glsl(get_contents(shader_path("widget.frag")), shader_path("widget.frag").abs_string());
     get_renderer().context->create_named_pipeline("widget", pci);
     
-    MaterialCPU widget_mat = { .file_path = "widget", .shader_name = "widget" };
+    MaterialCPU widget_mat = {.shader_name = "widget"};
+    widget_mat.file_path = FilePath("widget", true);
     upload_material(widget_mat);
 }
 

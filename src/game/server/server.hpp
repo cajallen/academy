@@ -8,10 +8,6 @@
 namespace spellbook {
 
 struct Server {
-    string external_resource_folder;
-    string resource_folder;
-    string user_folder;
-
     ENetHost* host = nullptr;
 
     QuickBuffer b = {};

@@ -12,8 +12,9 @@
 #include "extension/vuk_imgui.hpp"
 #include "general/vector.hpp"
 #include "general/math/geometry.hpp"
-#include "renderer/gpu_asset_cache.hpp"
-#include "game/frame_timer.hpp"
+
+#include "frame_timer.hpp"
+#include "gpu_asset_cache.hpp"
 
 struct GLFWwindow;
 
@@ -25,13 +26,12 @@ namespace spellbook {
 #define CAMERA_BINDING 0
 #define MODEL_BINDING 1
 #define ID_BINDING 2
-#define BONES_BINDING 3
-#define MATERIAL_BINDING 4
-#define BASE_COLOR_BINDING 5
-#define ORM_BINDING 6
-#define NORMAL_BINDING 7
-#define EMISSIVE_BINDING 8
-#define SPARE_BINDING_1 9
+#define MATERIAL_BINDING 3
+#define BASE_COLOR_BINDING 4
+#define ORM_BINDING 5
+#define NORMAL_BINDING 6
+#define EMISSIVE_BINDING 7
+#define SPARE_BINDING_1 8
 #define PARTICLES_BINDING MODEL_BINDING
 
 struct RenderScene;
@@ -88,5 +88,8 @@ inline Renderer& get_renderer() {
     static Renderer renderer;
     return renderer;
 }
+
+FilePath shader_path(string_view file);
+
 
 }

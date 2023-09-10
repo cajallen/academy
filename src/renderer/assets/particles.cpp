@@ -4,16 +4,12 @@
 
 #include "extension/fmt.hpp"
 #include "extension/imgui_extra.hpp"
-#include "general/file.hpp"
 #include "general/logger.hpp"
+#include "general/input.hpp"
 #include "general/math/matrix_math.hpp"
-#include "editor/pose_widget.hpp"
+
 #include "renderer/draw_functions.hpp"
 #include "renderer/render_scene.hpp"
-#include "renderer/assets/mesh_asset.hpp"
-#include "game/game_file.hpp"
-#include "game/input.hpp"
-#include "game/game_scene.hpp"
 
 namespace spellbook {
 
@@ -23,20 +19,20 @@ void setup_emitter() {
     if (!setup) {
         {
             vuk::PipelineBaseCreateInfo pci;
-            pci.add_glsl(get_contents("shaders/particle_emitter.comp"), "shaders/particle_emitter.comp");
+            pci.add_glsl(get_contents(shader_path("particle_emitter.comp")), shader_path("particle_emitter.comp").abs_string());
             get_renderer().context->create_named_pipeline("emitter", pci);
         }
         {
             vuk::PipelineBaseCreateInfo pci;
-            pci.add_glsl(get_contents("shaders/particle.vert"), "shaders/particle.vert");
-            pci.add_glsl(get_contents("shaders/textured_3d.frag"), "shaders/textured_3d.frag");
+            pci.add_glsl(get_contents(shader_path("particle.vert")), shader_path("particle.vert").abs_string());
+            pci.add_glsl(get_contents(shader_path("textured_3d.frag")), shader_path("textured_3d.frag").abs_string());
             get_renderer().context->create_named_pipeline("particle", pci);
         }
 
         auto cube_mesh = generate_cube(v3(0.0f), v3(1.0f));
-        cube_mesh.file_path = EmitterGPU::cube_mesh;
+        cube_mesh.file_path = FilePath(EmitterGPU::cube_mesh, true);
         auto sphere_mesh = generate_icosphere(2);
-        sphere_mesh.file_path = EmitterGPU::sphere_mesh;
+        sphere_mesh.file_path = FilePath(EmitterGPU::sphere_mesh, true);
         upload_mesh(cube_mesh);
         upload_mesh(sphere_mesh);
         setup = true;
@@ -47,7 +43,8 @@ EmitterGPU& instance_emitter(RenderScene& scene, const EmitterCPU& emitter_cpu) 
     setup_emitter();
     
     EmitterGPU emitter;
-    uint64 mat_id = hash_data(emitter_cpu.material.data(), emitter_cpu.material.size());
+    uint64 mat_id = hash_path(emitter_cpu.material);
+    get_gpu_asset_cache().paths[mat_id] = emitter_cpu.material;
     assert_else(get_gpu_asset_cache().materials.contains(mat_id));
     get_gpu_asset_cache().materials[mat_id].pipeline = get_renderer().context->get_named_pipeline("particle");
     emitter.update_from_cpu(emitter_cpu);
@@ -87,8 +84,8 @@ void EmitterGPU::update_from_cpu(const EmitterCPU& new_emitter) {
 
     rate = 1.0f / new_emitter.particles_per_second;
 
-    mesh = hash_view(new_emitter.mesh);
-    material = hash_view(new_emitter.material);
+    mesh = hash_path(new_emitter.mesh);
+    material = hash_path(new_emitter.material);
     get_gpu_asset_cache().paths[mesh] = new_emitter.mesh;
     get_gpu_asset_cache().paths[material] = new_emitter.material;
 
@@ -97,7 +94,7 @@ void EmitterGPU::update_from_cpu(const EmitterCPU& new_emitter) {
         emitter_cpu.color1_end != new_emitter.color1_end ||
         emitter_cpu.color2_start != new_emitter.color2_start ||
         emitter_cpu.color2_end != new_emitter.color2_end ||
-        color.texture.empty()) {
+        !color.texture.is_file()) {
         upload_color = true;
     }
     if (emitter_cpu.particles_per_second != new_emitter.particles_per_second ||
@@ -121,7 +118,7 @@ void EmitterGPU::update_from_cpu(const EmitterCPU& new_emitter) {
 
 void EmitterGPU::update_color() {
     TextureCPU color_texture;
-    color_texture.file_path = fmt_("{}_tex", emitter_cpu.file_path);
+    color_texture.file_path = FilePath(fmt_("{}_tex", emitter_cpu.file_path.rel_string()), true);
     color_texture.size = v2i(8, 8);
     color_texture.format = vuk::Format::eR8G8B8A8Srgb;
     color_texture.pixels.resize(color_texture.size.x * color_texture.size.y * 4);
@@ -138,7 +135,8 @@ void EmitterGPU::update_color() {
         }
     }
 
-    uint64 tex_id = hash_view(color_texture.file_path);
+    uint64 tex_id = hash_path(color_texture.file_path);
+    get_gpu_asset_cache().paths[tex_id] = color_texture.file_path;
     if (get_gpu_asset_cache().textures.contains(tex_id))
         get_gpu_asset_cache().textures.erase(tex_id);
     upload_texture(color_texture);
@@ -150,18 +148,19 @@ void EmitterGPU::update_size() {
 
     vector<uint8> bytes;
     bytes.resize(settings.max_particles * sizeof(v4)*4 + 4);
-    auto [buf, fut] = vuk::create_buffer(*get_renderer().global_allocator, vuk::MemoryUsage::eGPUonly, vuk::DomainFlagBits::eTransferOnTransfer, std::span(bytes));
+    auto [buf, fut] = create_buffer(*get_renderer().global_allocator, vuk::MemoryUsage::eGPUonly, vuk::DomainFlagBits::eTransferOnTransfer, std::span(bytes));
     particles_buffer = std::move(buf);
     get_renderer().enqueue_setup(std::move(fut));
 }
 
-bool inspect(GameScene* scene, EmitterCPU* emitter) {
+bool inspect(RenderScene* scene, EmitterCPU* emitter) {
     bool changed = false;
-    ImGui::PathSelect("File", &emitter->file_path, "resources", FileType_General);
+    ImGui::PathSelect<EmitterCPU>("File", &emitter->file_path);
 
+    changed |= inspect_dependencies(emitter->dependencies, emitter->file_path);
     
-    PoseWidgetSettings settings {scene->render_scene};
-    changed |= pose_widget((uint64) emitter, &emitter->position, &emitter->rotation, settings);
+//    PoseWidgetSettings settings {*scene};
+//    changed |= pose_widget((uint64) emitter, &emitter->position, &emitter->rotation, settings);
     changed |= ImGui::DragFloat3("Offset", emitter->offset.data, 0.01f);
     changed |= ImGui::DragFloat3("Offset Random", emitter->position_random.data, 0.01f);
     changed |= ImGui::DragFloat3("Velocity", emitter->velocity.data, 0.01f);
@@ -183,8 +182,9 @@ bool inspect(GameScene* scene, EmitterCPU* emitter) {
     changed |= ImGui::ColorEdit3("Color 1 End", emitter->color1_end.data);
     changed |= ImGui::ColorEdit3("Color 2 Start", emitter->color2_start.data);
     changed |= ImGui::ColorEdit3("Color 2 End", emitter->color2_end.data);
-    
-    changed |= ImGui::PathSelect("Mesh", &emitter->mesh, "resources/models", FileType_Mesh);
+
+    // TODO
+    //changed |= ImGui::PathSelect("Mesh", &emitter->mesh, FileType_Mesh);
 
     return changed;
 }
@@ -224,13 +224,14 @@ void render_particles(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer) {
         .bind_buffer(0, PARTICLES_BINDING, *emitter.particles_buffer)
         .bind_graphics_pipeline(material->pipeline);
 
-    uint64 tex_id = hash_view(emitter.color.texture);
+    uint64 tex_id = hash_path(emitter.color.texture);
+    get_gpu_asset_cache().paths[tex_id] = emitter.color.texture;
     TextureGPU& tex = get_gpu_asset_cache().textures[tex_id];
     command_buffer.bind_image(0, SPARE_BINDING_1, tex.value.view.get()).bind_sampler(0, SPARE_BINDING_1, emitter.color.sampler.get());
     material->bind_parameters(command_buffer);
     material->bind_textures(command_buffer);
     command_buffer.draw_indexed(mesh->index_count, emitter.settings.max_particles, 0, 0, 0);
-}   
+}
 
 void upload_dependencies(EmitterGPU& renderable) {
     if (renderable.mesh == 0 || renderable.material == 0)

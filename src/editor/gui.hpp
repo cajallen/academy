@@ -2,7 +2,7 @@
 
 #include "general/string.hpp"
 #include "general/umap.hpp"
-#include "general/json.hpp"
+#include "archive/general/file/json.hpp"
 #include "general/color.hpp"
 
 namespace spellbook {

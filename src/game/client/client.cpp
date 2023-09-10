@@ -9,10 +9,10 @@
 #include "general/vector.hpp"
 #include "general/string.hpp"
 #include "general/logger.hpp"
+#include "general/input.hpp"
 #include "renderer/renderer.hpp"
 #include "editor/console.hpp"
 #include "editor/editor_scene.hpp"
-#include "game/input.hpp"
 
 constexpr string_view ServerHostName = "example.com";
 
@@ -23,13 +23,9 @@ namespace spellbook {
 static vector<ENetPeer*> remote_peers = {};
 
 void Client::startup() {
-    external_resource_folder = (fs::current_path() / "external_resources").string();
-    resource_folder = (fs::current_path() / "resources").string();
-    user_folder = (fs::current_path() / "user").string();
-
     Console::setup();
     get_renderer().setup();
-    Input::setup();
+    Input::setup(get_renderer().window);
 
     for (auto& editor_scene : get_editor_scenes()) {
         editor_scene->setup();

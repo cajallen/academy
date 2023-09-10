@@ -44,8 +44,8 @@ target_include_directories(stb INTERFACE vuk/ext/stb)
 
 
 # package as interface
-add_library(academy_libs INTERFACE)
-target_link_libraries(academy_libs INTERFACE 
+add_library(libs INTERFACE)
+target_link_libraries(libs INTERFACE 
     magic_enum
     tinygltf
     vuk
@@ -57,11 +57,11 @@ target_link_libraries(academy_libs INTERFACE
     robin_hood
     fmt
 )
-target_include_directories(academy_libs INTERFACE 
+target_include_directories(libs INTERFACE 
     tracy/public
     entt/src
     ${enet_SOURCE_DIR}/include
 )
-target_include_directories(academy_libs INTERFACE .)
-target_compile_definitions(academy_libs INTERFACE IMGUI_USER_CONFIG=\"imgui_config.h\")
-target_compile_definitions(academy_libs INTERFACE FONT_ICON_FILE_NAME_FA=\"fa.ttf\")
+target_include_directories(libs INTERFACE .)
+target_compile_definitions(libs INTERFACE IMGUI_USER_CONFIG=\"imgui_config.h\")
+target_compile_definitions(libs INTERFACE FONT_ICON_FILE_NAME_FA=\"fa.ttf\")

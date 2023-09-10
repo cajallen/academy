@@ -3,8 +3,7 @@
 #include "general/logger.hpp"
 
 #include "renderer/draw_functions.hpp"
-#include "renderer/assets/mesh_asset.hpp"
-#include "renderer/assets/texture_asset.hpp"
+#include "renderer/assets/material.hpp"
 
 namespace spellbook {
 
@@ -38,13 +37,13 @@ MaterialGPU& GPUAssetCache::get_material_or_upload(uint64 id) {
     if (materials.contains(id))
         return materials[id];
     assert_else(paths.contains(id));
-    upload_material(load_material(paths[id]));
+    upload_material(load_resource<MaterialCPU>(paths[id]));
     return materials[id];
 }
 
-TextureGPU& GPUAssetCache::get_texture_or_upload(const string& asset_path) {
-    assert_else(!asset_path.empty());
-    uint64 hash = hash_view(asset_path);
+TextureGPU& GPUAssetCache::get_texture_or_upload(const FilePath& asset_path) {
+    assert_else(asset_path.is_file());
+    uint64 hash = hash_path(asset_path);
     if (textures.contains(hash))
         return textures[hash];
     upload_texture(load_texture(asset_path));
@@ -54,20 +53,21 @@ TextureGPU& GPUAssetCache::get_texture_or_upload(const string& asset_path) {
 
 void GPUAssetCache::upload_defaults() {
     TextureCPU tex_white_upload {
-        .file_path = "textures/white.sbtex",
         .size = v2i(8, 8),
         .format = vuk::Format::eR8G8B8A8Srgb,
         .pixels = vector<uint8>(8 * 8 * 4, 255)
     };
+    tex_white_upload.file_path = "textures/white.sbtex"_rp;
     upload_texture(tex_white_upload);
 
     constexpr uint32 grid_size = 1024;
     TextureCPU tex_grid_upload {
-        .file_path = "textures/grid.sbtex",
         .size = v2i(grid_size, grid_size),
         .format = vuk::Format::eR8G8B8A8Srgb,
         .pixels = vector<uint8>(grid_size * grid_size * 4, 255)
     };
+    tex_grid_upload.file_path = "textures/grid.sbtex"_rp;
+
     // do border
     for (uint32 i = 0; i < (grid_size - 1); i++) {
         for (uint32 pixel_pos : vector<uint32>{i, i * grid_size + (grid_size - 1), (grid_size - 1) * grid_size + i + 1, i * grid_size + grid_size}) {
@@ -78,20 +78,23 @@ void GPUAssetCache::upload_defaults() {
     }
     upload_texture(tex_grid_upload);
 
-    MaterialCPU default_mat = {
-        .file_path = "default",
-        .color_tint = palette::black,
-    };
-    upload_material(default_mat);
     TextureCPU default_tex = {
-        .file_path = "default",
         .size = {2, 2},
         .format = vuk::Format::eR8G8B8A8Srgb,
         .pixels = {255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255}
     };
+    default_tex.file_path = FilePath("default", true);
     upload_texture(default_tex);
+
+    MaterialCPU default_mat = {
+        .color_tint = palette::black,
+    };
+    default_mat.file_path = FilePath("default", true);
+    upload_material(default_mat);
+
+
     MeshCPU default_mesh   = generate_cube(v3(0), v3(1));
-    default_mesh.file_path = "default";
+    default_mesh.file_path = FilePath("default", true);
     upload_mesh(default_mesh);
 }
 

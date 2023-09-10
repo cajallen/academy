@@ -5,10 +5,9 @@
 
 #include "extension/imgui_extra.hpp"
 #include "general/logger.hpp"
+
 #include "renderer/renderer.hpp"
 #include "renderer/gpu_asset_cache.hpp"
-#include "renderer/assets/skeleton.hpp"
-#include "renderer/assets/mesh_asset.hpp"
 
 namespace spellbook {
 
@@ -41,8 +40,7 @@ void render_item(Renderable& renderable, vuk::CommandBuffer& command_buffer, int
     // Bind mesh
     command_buffer
         .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32)
-        .bind_buffer(0, BONES_BINDING, renderable.skeleton != nullptr ? renderable.skeleton->buffer.get() : SkeletonGPU::empty_buffer()->get());
+        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
 
     // Bind Material
     command_buffer
@@ -84,51 +82,7 @@ void render_shadow(Renderable& renderable, vuk::CommandBuffer& command_buffer, i
     // Bind mesh
     command_buffer
         .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32)
-        .bind_buffer(0, BONES_BINDING, renderable.skeleton != nullptr ? renderable.skeleton->buffer.get() : SkeletonGPU::empty_buffer()->get());
-                
-    // Draw call
-    command_buffer.draw_indexed(mesh->index_count, 1, 0, 0, (*item_index)++);
-}
-
-
-void render_item(StaticRenderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
-    MaterialGPU* material = get_gpu_asset_cache().get_material(renderable.material_id);
-    assert_else (mesh != nullptr && material != nullptr) {
-        if (item_index)
-            (*item_index)++;
-        return;
-    }
-    // Bind mesh
-    command_buffer
-        .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32)
-        .bind_buffer(0, BONES_BINDING, SkeletonGPU::empty_buffer()->get());
-
-    // Bind Material
-    command_buffer
-        .set_rasterization({.cullMode = material->cull_mode})
-        .bind_graphics_pipeline(material->pipeline);
-    material->bind_parameters(command_buffer);
-    material->bind_textures(command_buffer);
-
-    // Draw call
-    command_buffer.draw_indexed(mesh->index_count, 1, 0, 0, item_index ? (*item_index)++ : 0);
-}
-
-void render_shadow(StaticRenderable& renderable, vuk::CommandBuffer& command_buffer, int* item_index) {
-    MeshGPU* mesh = get_gpu_asset_cache().get_mesh(renderable.mesh_id);
-    if (mesh == nullptr) {
-        (*item_index)++;
-        return;
-    }
-    // Bind mesh
-    command_buffer
-        .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
-        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32)
-        .bind_buffer(0, BONES_BINDING, SkeletonGPU::empty_buffer()->get());
-                
+        .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
     // Draw call
     command_buffer.draw_indexed(mesh->index_count, 1, 0, 0, (*item_index)++);
 }

@@ -11,14 +11,13 @@
 #include "extension/fmt.hpp"
 #include "extension/fmt_geometry.hpp"
 #include "extension/imgui_extra.hpp"
-#include "general/file.hpp"
-#include "general/hash.hpp"
-#include "general/math/math.hpp"
 #include "general/logger.hpp"
-#include "renderer/render_scene.hpp"
-#include "renderer/samplers.hpp"
-#include "renderer/utils.hpp"
-#include "game/input.hpp"
+#include "general/input.hpp"
+#include "general/math/math.hpp"
+#include "general/file/file_path.hpp"
+
+#include "render_scene.hpp"
+#include "utils.hpp"
 
 namespace spellbook {
 
@@ -145,30 +144,37 @@ void Renderer::setup() {
     ImGui::CreateContext();
     ImGui::StyleColorsAcademy();
     ImGui_ImplGlfw_InitForVulkan(window, false);
-    imgui_data = ImGui_ImplVuk_Init(*global_allocator, compiler);
+
+    FilePath imgui_vert_path = shader_path("imgui.vert.spv");
+    FilePath imgui_frag_path = shader_path("imgui.frag.spv");
+    ImGuiShaderInfo imgui_shaders = {
+            imgui_vert_path.abs_string(), get_contents_uint32(imgui_vert_path),
+            imgui_frag_path.abs_string(), get_contents_uint32(imgui_frag_path)
+    };
+    imgui_data = ImGui_ImplVuk_Init(*global_allocator, compiler, imgui_shaders);
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     ImGui::GetIO().ConfigDockingWithShift = true;
 
     {
         vuk::PipelineBaseCreateInfo pci;
-        pci.add_glsl(get_contents("shaders/post_process.comp"), "shaders/post_process.comp");
+        pci.add_glsl(get_contents(shader_path("post_process.comp")), shader_path("post_process.comp").abs_string());
         context->create_named_pipeline("postprocess", pci);
     }
     {
         vuk::PipelineBaseCreateInfo pci;
-        pci.add_glsl(get_contents("shaders/blur.comp"), "shaders/blur.comp");
+        pci.add_glsl(get_contents(shader_path("blur.comp")), shader_path("blur.comp").abs_string());
         context->create_named_pipeline("blur", pci);
     }
     {
         vuk::PipelineBaseCreateInfo pci;
-        pci.add_glsl(get_contents("shaders/standard_3d.vert"), "shaders/standard_3d.vert");
-        pci.add_glsl(get_contents("shaders/textured_3d.frag"), "shaders/textured_3d.frag");
+        pci.add_glsl(get_contents(shader_path("standard_3d.vert")), shader_path("standard_3d.vert").abs_string());
+        pci.add_glsl(get_contents(shader_path("textured_3d.frag")), shader_path("textured_3d.frag").abs_string());
         context->create_named_pipeline("textured_model", pci);
     }
     {
         vuk::PipelineBaseCreateInfo pci;
-        pci.add_glsl(get_contents("shaders/standard_3d.vert"), "shaders/standard_3d.vert");
-        pci.add_glsl(get_contents("shaders/directional_depth.frag"), "shaders/directional_depth.frag");
+        pci.add_glsl(get_contents(shader_path("standard_3d.vert")), shader_path("standard_3d.vert").abs_string());
+        pci.add_glsl(get_contents(shader_path("directional_depth.frag")), shader_path("directional_depth.frag").abs_string());
         context->create_named_pipeline("directional_depth", pci);
     }
 
@@ -176,13 +182,22 @@ void Renderer::setup() {
 
     {
         // OPTIMIZATION: can thread
-        for (auto scene : scenes) {
+        for (auto scene: scenes) {
             scene->setup(*global_allocator);
         }
     }
 
     wait_for_futures();
     stage = RenderStage_Inactive;
+
+    Input::add_callback<ResizeCallback>(InputCallbackInfo<ResizeCallback>{
+        .callback = [](ResizeCallbackArgs args)-> bool {
+            get_renderer().resize({args.x, args.y});
+            return false;
+        },
+        .priority = 0,
+        .name = "framebuffer_resize"
+    });
 }
 
 void Renderer::update() {
@@ -312,6 +327,10 @@ void Renderer::debug_window(bool* p_open) {
         frame_timer.inspect();
     }
     ImGui::End();
+}
+
+FilePath shader_path(string_view file) {
+    return FilePath("shaders/"s + string(file));
 }
 
 

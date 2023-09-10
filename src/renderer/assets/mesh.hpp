@@ -5,10 +5,21 @@
 
 #include "general/vector.hpp"
 #include "general/string.hpp"
-#include "general/json.hpp"
+#include "general/file/json.hpp"
+#include "general/file/file_path.hpp"
+#include "general/file/resource.hpp"
+
 #include "renderer/vertex.hpp"
 
 namespace spellbook {
+
+struct MeshInfo {
+    uint32 vertices_bsize = 0;
+    uint32 indices_bsize  = 0;
+    uint32 index_bsize    = 0;
+};
+
+JSON_IMPL(MeshInfo, vertices_bsize, indices_bsize, index_bsize);
 
 struct MeshBounds {
     bool valid;
@@ -17,15 +28,19 @@ struct MeshBounds {
     float  radius;
 };
 
-struct MeshCPU {
-    string         file_path;
-    
+struct MeshCPU : Resource {
     vector<Vertex> vertices;
-    vector<uint32>    indices;
+    vector<uint32> indices;
 
     MeshBounds bounds;
 
     void fix_tangents();
+
+    static constexpr string_view extension() { return ".sbamsh"; }
+    static constexpr string_view dnd_key() { return "DND_MESH"; }
+    static constexpr FileCategory file_category() { return FileCategory_Asset; }
+    static string folder() { return (get_resource_folder()).abs_string(); }
+    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == MeshCPU::extension(); }; }
 };
 JSON_IMPL(MeshBounds, valid, extents, origin, radius);
 JSON_IMPL(MeshCPU, bounds);
@@ -40,6 +55,8 @@ struct MeshGPU {
     bool frame_allocated;
 };
 
+MeshCPU load_mesh(const FilePath& file_path);
+void    save_mesh(const MeshCPU& mesh_cpu);
 uint64 upload_mesh(const MeshCPU&, bool frame_allocation = false);
 
 }

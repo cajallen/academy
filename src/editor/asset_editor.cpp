@@ -5,9 +5,8 @@
 
 #include "extension/imgui_extra.hpp"
 #include "extension/icons/font_awesome4.h"
+#include "general/input.hpp"
 #include "editor/editor.hpp"
-#include "game/input.hpp"
-#include "game/game_file.hpp"
 #include "game/process_launch.hpp"
 
 namespace spellbook {
@@ -16,7 +15,7 @@ void AssetEditor::setup() {
     EditorScene::setup();
     scene->render_scene.scene_data.ambient = Color(palette::white, 0.20f);
     
-    fs::path asset_editor_file = fs::path(get_editor().user_folder) / ("asset_editor" + extension(FileType_General));
+    fs::path asset_editor_file = fs::path(get_editor().user_folder) / ("asset_editor" + string(Resource::extension()));
     
     json j = fs::exists(asset_editor_file) ? parse_file(asset_editor_file.string()) : json{};
     if (j.contains("tab"))
@@ -26,7 +25,7 @@ void AssetEditor::setup() {
 void AssetEditor::shutdown() {
     EditorScene::shutdown();
 
-    fs::path asset_editor_file = fs::path(get_editor().user_folder) / ("asset_editor" + extension(FileType_General));
+    fs::path asset_editor_file = fs::path(get_editor().user_folder) / ("asset_editor" + string(Resource::extension()));
     fs::create_directories(asset_editor_file.parent_path());
     
     auto j = json();
@@ -71,11 +70,11 @@ template<typename T>
 void asset_tab(AssetEditor& asset_editor, const string& name, AssetEditor::Tab type, T* asset_value) {
     if (ImGui::BeginTabItem(name.c_str(), nullptr, type == asset_editor.external_tab_selection ? ImGuiTabItemFlags_SetSelected : 0)) {
         if (ImGui::Button("Save##AssetTab")) {
-            save_asset(*asset_value);
+            save_resource(*asset_value);
         }
         ImGui::SameLine();
         if (ImGui::Button("Load##AssetTab")) {
-            *asset_value = load_asset<T>(asset_value->file_path, false, true);
+            *asset_value = load_resource<T>(asset_value->file_path, false, true);
             asset_editor.switch_tab(type);
         }
         ImGui::EndTabItem();
@@ -93,11 +92,11 @@ void AssetEditor::info_window(bool* p_open) {
     if (ImGui::Begin("Asset Editor Info", p_open)) {
 
         if (ImGui::Button("Spawn Server")) {
-            launch_subprocess("src/academy_server.exe");
+            launch_subprocess("academy_server.exe"_fp);
         }
 
         if (ImGui::Button("Spawn Client")) {
-            launch_subprocess("src/academy_client.exe");
+            launch_subprocess("src/academy_client.exe"_fp);
         }
 
         ImGui::Separator();

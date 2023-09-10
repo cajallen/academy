@@ -1,28 +1,27 @@
-#include "asset_editor.hpp"
+#include "game_display.hpp"
 
-#include "extension/icons/font_awesome4.h"
-#include "editor/editor.hpp"
-#include "game/input.hpp"
-#include "game/game_file.hpp"
+#include <imgui.h>
 
 namespace spellbook {
-
-void GameDisplay::setup() {
-    EditorScene::setup();
-}
-
-void GameDisplay::shutdown() {
-    EditorScene::shutdown();
-}
-
-void GameDisplay::update() {
-    EditorScene::update();
-}
 
 void GameDisplay::info_window(bool* p_open) {
     if (ImGui::Begin("Game Display Info", p_open)) {
     }
     ImGui::End();
+}
+
+void GameDisplay::output_window(bool* p_open) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
+    if (ImGui::Begin((name + " Output").c_str(), p_open)) {
+        scene->render_scene.viewport.window_hovered = ImGui::IsWindowHovered();
+        scene->render_scene.image((v2i) ImGui::GetContentRegionAvail());
+        scene->render_scene.cull_pause = false;
+    } else {
+        scene->render_scene.viewport.window_hovered = false;
+        scene->render_scene.cull_pause = true;
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 }

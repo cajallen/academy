@@ -1,13 +1,12 @@
 ﻿#include "pose_widget.hpp"
 
-#include "general/file.hpp"
 #include "general/logger.hpp"
+#include "general/input.hpp"
 #include "general/math/matrix_math.hpp"
 #include "renderer/draw_functions.hpp"
 #include "renderer/render_scene.hpp"
 #include "renderer/viewport.hpp"
 #include "editor/widget_system.hpp"
-#include "game/input.hpp"
 
 namespace spellbook {
 

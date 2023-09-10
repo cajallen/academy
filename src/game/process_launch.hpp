@@ -1,9 +1,9 @@
 #pragma once
 
-#include "general/string.hpp"
+#include "archive/general/file/file_path.hpp"
 
 namespace spellbook {
 
-void launch_subprocess(const string& application_name);
+void launch_subprocess(const FilePath& application_path);
 
 }

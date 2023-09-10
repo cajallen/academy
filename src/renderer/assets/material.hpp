@@ -4,10 +4,12 @@
 #include <vuk/SampledImage.hpp>
 
 #include "general/string.hpp"
-#include "general/math/geometry.hpp"
 #include "general/color.hpp"
-#include "renderer/samplers.hpp"
+#include "general/math/geometry.hpp"
+#include "general/file/resource.hpp"
+#include "general/file/file_path.hpp"
 
+#include "renderer/samplers.hpp"
 
 namespace vuk {
 struct PipelineBaseInfo;
@@ -16,26 +18,29 @@ struct PipelineBaseInfo;
 namespace spellbook {
 
 // This should really be MaterialPrefab, and we should convert the paths into ids for a MaterialCPU
-struct MaterialCPU {
-    string file_path;
-    vector<string> dependencies;
-
+struct MaterialCPU : Resource {
     Color color_tint       = palette::white;
     Color emissive_tint    = palette::black;
     float   roughness_factor = 0.5f;
     float   metallic_factor  = 0.0f;
     float   normal_factor    = 0.0f;
 
-    string color_asset_path    = "textures/white.sbtex";
-    string orm_asset_path      = "textures/white.sbtex";
-    string normal_asset_path   = "textures/white.sbtex";
-    string emissive_asset_path = "textures/white.sbtex";
+    FilePath color_asset_path    = "textures/white.sbtex"_rp;
+    FilePath orm_asset_path      = "textures/white.sbtex"_rp;
+    FilePath normal_asset_path   = "textures/white.sbtex"_rp;
+    FilePath emissive_asset_path = "textures/white.sbtex"_rp;
 
     Sampler sampler = Sampler().address(Address_Mirrored).anisotropy(true);
 
     vuk::CullModeFlagBits cull_mode = vuk::CullModeFlagBits::eNone;
 
     string shader_name = "textured_model";
+
+    static constexpr string_view extension() { return ".sbjmat"; }
+    static constexpr string_view dnd_key() { return "DND_MATERIAL"; }
+    static constexpr FileCategory file_category() { return FileCategory_Json; }
+    static string folder() { return (get_resource_folder()).abs_string(); }
+    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == MaterialCPU::extension(); }; }
 };
 
 JSON_IMPL(MaterialCPU, color_tint, roughness_factor, metallic_factor, normal_factor, emissive_tint, color_asset_path,
@@ -70,8 +75,6 @@ struct MaterialGPU {
 bool inspect(MaterialCPU* material);
 void inspect(MaterialGPU* material);
 
-uint64         upload_material(const MaterialCPU&, bool frame_allocation = false);
-void        save_material(MaterialCPU&);
-MaterialCPU load_material(const string& file_name);
+uint64 upload_material(const MaterialCPU&, bool frame_allocation = false);
 
 }

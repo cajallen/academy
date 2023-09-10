@@ -1,10 +1,10 @@
 #pragma once
 
-#include "general/vector.hpp"
-
 #include <VkBootstrap.h>
 #include <vuk/Swapchain.hpp>
 #include <vuk/Types.hpp>
+
+#include "general/vector.hpp"
 
 namespace spellbook {
 

@@ -11,8 +11,7 @@
 #include "general/vector.hpp"
 #include "general/string.hpp"
 #include "general/logger.hpp"
-#include "renderer/renderer.hpp"
-#include "game/input.hpp"
+#include "general/input.hpp"
 #include "game/terminal_console.hpp"
 
 namespace fs = std::filesystem;
@@ -22,10 +21,6 @@ namespace spellbook {
 static vector<ENetPeer*> peers;
 
 void Server::startup() {
-    external_resource_folder = (fs::current_path() / "external_resources").string();
-    resource_folder = (fs::current_path() / "resources").string();
-    user_folder = (fs::current_path() / "user").string();
-    
 	enet_initialize();
 
 	ENetAddress hostAddress = {};

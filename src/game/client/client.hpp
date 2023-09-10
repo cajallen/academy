@@ -9,10 +9,6 @@ namespace spellbook {
 
 struct Client {
     GUI      gui;
-    
-    string external_resource_folder;
-    string resource_folder;
-    string user_folder;
 
     ENetHost* host = nullptr;
     ENetPeer* server_peer = nullptr;

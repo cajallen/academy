@@ -4,7 +4,7 @@
 
 #include "extension/fmt.hpp"
 #include "general/math/math.hpp"
-#include "game/input.hpp"
+#include "general/input.hpp"
 
 namespace spellbook {
 

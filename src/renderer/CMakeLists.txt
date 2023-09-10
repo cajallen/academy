@@ -1,14 +1,10 @@
 find_package(Vulkan REQUIRED)
 
 add_library(renderer
-    assets/asset_loader.cpp
     assets/material.cpp
-    assets/mesh_asset.cpp
     assets/mesh.cpp
     assets/model.cpp
     assets/particles.cpp
-    assets/skeleton.cpp
-    assets/texture_asset.cpp
     assets/texture.cpp
     camera.cpp
     draw_functions.cpp
@@ -20,7 +16,9 @@ add_library(renderer
     vertex.cpp
     viewport.cpp
     gpu_asset_cache.cpp
+    frame_timer.cpp
 )
 
-target_link_libraries(renderer PUBLIC archive academy_libs academy_src)
+target_include_directories(renderer PRIVATE ..)
+target_link_libraries(renderer PUBLIC archive libs)
 target_precompile_headers(renderer PUBLIC ../archive/general/global.hpp)

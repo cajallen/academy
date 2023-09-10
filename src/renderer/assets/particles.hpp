@@ -6,21 +6,19 @@
 
 #include "general/color.hpp"
 #include "general/string.hpp"
-#include "general/json.hpp"
 #include "general/math/matrix.hpp"
 #include "general/math/quaternion.hpp"
+#include "general/file/json.hpp"
+#include "general/file/file_path.hpp"
+#include "general/file/resource.hpp"
+
 #include "renderer/vertex.hpp"
 #include "renderer/image.hpp"
 
-
 namespace spellbook {
-struct Scene;
 struct RenderScene;
 
-struct EmitterCPU {
-    string file_path;
-    vector<string> dependencies;
-    
+struct EmitterCPU : Resource {
     v3 offset = v3(0.0f);
     v3 position = v3(0.0f);
     v3 velocity = v3(0.0f);
@@ -46,10 +44,16 @@ struct EmitterCPU {
     v3 alignment_vector = v3(0.0f);
     v3 alignment_random = v3(0.0f);
 
-    string mesh;
-    string material;
+    FilePath mesh;
+    FilePath material;
 
     void set_velocity_direction(v3 dir);
+
+    static constexpr string_view extension() { return ".sbjemt"; }
+    static constexpr string_view dnd_key() { return "DND_EMITTER"; }
+    static constexpr FileCategory file_category() { return FileCategory_Json; }
+    static string folder() { return (get_resource_folder()).abs_string(); }
+    static std::function<bool(const fs::path&)> path_filter() { return [](const fs::path& path) { return path.extension().string() == EmitterCPU::extension(); }; }
 };
 
 struct EmitterSettings {
@@ -72,8 +76,8 @@ struct EmitterSettings {
 };
 
 struct EmitterGPU {
-    static constexpr uint64 cube_mesh = hash_view("emitter_cube");
-    static constexpr uint64 sphere_mesh = hash_view("emitter_sphere");
+    static constexpr string_view cube_mesh = "emitter_cube";
+    static constexpr string_view sphere_mesh = "emitter_sphere";
     // For editing purposes
     EmitterCPU emitter_cpu;
     
@@ -101,7 +105,7 @@ struct EmitterGPU {
 EmitterGPU& instance_emitter(RenderScene& scene, const EmitterCPU& emitter_cpu);
 void deinstance_emitter(EmitterGPU& emitter, bool wait_despawn = true);
 
-bool inspect(Scene* scene, EmitterCPU* emitter);
+bool inspect(RenderScene* scene, EmitterCPU* emitter);
 
 void update_emitter(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer);
 void render_particles(EmitterGPU& emitter, vuk::CommandBuffer& command_buffer);

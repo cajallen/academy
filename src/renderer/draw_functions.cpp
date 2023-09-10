@@ -8,7 +8,8 @@
 #include "general/hash.hpp"
 #include "general/bitmask_3d.hpp"
 #include "general/math/ease.hpp"
-#include "renderer/render_scene.hpp"
+
+#include "render_scene.hpp"
 
 namespace spellbook {
 
@@ -39,94 +40,96 @@ v2 position2uv(v3 v) {
 
 MeshCPU generate_cube(v3 center, v3 extents, Color vertex_color) {
     ZoneScoped;
-    string name = fmt_("cube_center:{:.2f}_extents:{:.2f}", center, extents);
-    
-	return MeshCPU{name, vector<Vertex>  {
-        // back
-        Vertex {center + extents * v3{-1, -1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{1, 1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{1, -1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {0, 1}},
-        Vertex {center + extents * v3{1, 1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{-1, -1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{-1, 1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {1, 0}},
-        // front
-        Vertex {center + extents * v3{-1, -1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {0, 1}},
-        Vertex {center + extents * v3{1, -1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{1, 1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{1, 1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{-1, 1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{-1, -1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {0, 1}},
-        // left
-        Vertex {center + extents * v3{-1, 1, -1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{-1, -1, -1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {0, 1}},
-        Vertex {center + extents * v3{-1, 1, 1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{-1, -1, -1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {0, 1}},
-        Vertex {center + extents * v3{-1, -1, 1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{-1, 1, 1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {1, 0}},
-        // right
-        Vertex {center + extents * v3{1, 1, 1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{1, -1, -1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{1, 1, -1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{1, -1, -1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{1, 1, 1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{1, -1, 1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {0, 1}},
-        // bottom
-        Vertex {center + extents * v3{-1, -1, -1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 1}},
-        Vertex {center + extents * v3{1, -1, -1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{1, -1, 1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{1, -1, 1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{-1, -1, 1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{-1, -1, -1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 1}},
-        // top
-        Vertex {center + extents * v3{-1, 1, -1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{1, 1, 1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{1, 1, -1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 0}},
-        Vertex {center + extents * v3{1, 1, 1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 1}},
-        Vertex {center + extents * v3{-1, 1, -1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 0}},
-        Vertex {center + extents * v3{-1, 1, 1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 1}}},
-        {0,	1,	2,	3,	4,	5,	6,	7,	8,	9,	10, 11, 12, 13, 14, 15, 16, 17,
+    MeshCPU mesh = {
+        .vertices = vector<Vertex>{
+            // back
+            Vertex {center + extents * v3{-1, -1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{1, 1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{1, -1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {0, 1}},
+            Vertex {center + extents * v3{1, 1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{-1, -1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{-1, 1, -1}, {0, 0, -1}, {-1, 0, 0}, vertex_color.rgb, {1, 0}},
+            // front
+            Vertex {center + extents * v3{-1, -1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {0, 1}},
+            Vertex {center + extents * v3{1, -1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{1, 1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{1, 1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{-1, 1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{-1, -1, 1}, {0, 0, 1}, {1, 0.0, 0}, vertex_color.rgb, {0, 1}},
+            // left
+            Vertex {center + extents * v3{-1, 1, -1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{-1, -1, -1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {0, 1}},
+            Vertex {center + extents * v3{-1, 1, 1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{-1, -1, -1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {0, 1}},
+            Vertex {center + extents * v3{-1, -1, 1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{-1, 1, 1}, {-1, 0, 0}, {0, 0, 1}, vertex_color.rgb, {1, 0}},
+            // right
+            Vertex {center + extents * v3{1, 1, 1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{1, -1, -1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{1, 1, -1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{1, -1, -1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{1, 1, 1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{1, -1, 1}, {1, 0, 0}, {0, 0, -1}, vertex_color.rgb, {0, 1}},
+            // bottom
+            Vertex {center + extents * v3{-1, -1, -1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 1}},
+            Vertex {center + extents * v3{1, -1, -1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{1, -1, 1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{1, -1, 1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{-1, -1, 1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{-1, -1, -1}, {0, -1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 1}},
+            // top
+            Vertex {center + extents * v3{-1, 1, -1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{1, 1, 1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{1, 1, -1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 0}},
+            Vertex {center + extents * v3{1, 1, 1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {1, 1}},
+            Vertex {center + extents * v3{-1, 1, -1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 0}},
+            Vertex {center + extents * v3{-1, 1, 1}, {0, 1, 0}, {1, 0, 0}, vertex_color.rgb, {0, 1}}
+        },
+        .indices = {0,	1,	2,	3,	4,	5,	6,	7,	8,	9,	10, 11, 12, 13, 14, 15, 16, 17,
         18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35}
     };
+    mesh.file_path = FilePath(fmt_("cube_center:{:.2f}_extents:{:.2f}", center, extents), true);
+    return mesh;
 }
 
 MeshCPU generate_icosphere(int subdivisions) {
-    string name = fmt_("icosphere_subdivisions:{}", subdivisions);
-    
-    vector<uint32> index_list = icosphere::triangles;
-    vector<Vertex> vertex_list = icosphere::vertices;
+    MeshCPU mesh;
+    mesh.file_path = FilePath(fmt_("icosphere_subdivisions:{}", subdivisions), true);
+    mesh.indices = icosphere::triangles;
+    mesh.vertices = icosphere::vertices;
     for (int s = 0; s < subdivisions; s++) {
         vector<uint32> new_index_list;
-        for (int i = 0; i+2 < index_list.size(); i+=3) {
-            v3 p1 = vertex_list[index_list[i+0]].position;
-            v3 p2 = vertex_list[index_list[i+1]].position;
-            v3 p3 = vertex_list[index_list[i+2]].position;
-            uint32 new_index1 = vertex_list.size();
+        for (int i = 0; i+2 < mesh.indices.size(); i+=3) {
+            v3 p1 = mesh.vertices[mesh.indices[i+0]].position;
+            v3 p2 = mesh.vertices[mesh.indices[i+1]].position;
+            v3 p3 = mesh.vertices[mesh.indices[i+2]].position;
+            uint32 new_index1 = mesh.vertices.size();
             uint32 new_index2 = new_index1 + 1;
             uint32 new_index3 = new_index1 + 2;
-            vertex_list.emplace_back(math::normalize(p1 + p2));
-            vertex_list.emplace_back(math::normalize(p2 + p3));
-            vertex_list.emplace_back(math::normalize(p3 + p1));
+            mesh.vertices.emplace_back(math::normalize(p1 + p2));
+            mesh.vertices.emplace_back(math::normalize(p2 + p3));
+            mesh.vertices.emplace_back(math::normalize(p3 + p1));
 
-            new_index_list.push_back(index_list[i+0]);
+            new_index_list.push_back(mesh.indices[i+0]);
             new_index_list.push_back(new_index1);
             new_index_list.push_back(new_index3);
 
             new_index_list.push_back(new_index1);
-            new_index_list.push_back(index_list[i+1]);
+            new_index_list.push_back(mesh.indices[i+1]);
             new_index_list.push_back(new_index2);
 
             new_index_list.push_back(new_index3);
-            new_index_list.push_back(index_list[i+2]);
+            new_index_list.push_back(mesh.indices[i+2]);
             new_index_list.push_back(new_index2);
 
             new_index_list.push_back(new_index1);
             new_index_list.push_back(new_index2);
             new_index_list.push_back(new_index3);
         }
-        index_list = new_index_list;
+        mesh.indices = new_index_list;
     }
 
-    for (Vertex& v : vertex_list) {
+    for (Vertex& v : mesh.vertices) {
         v.normal = math::normalize(v.position);
         v.tangent = math::normalize(math::cross(v.position, v3::Z));
         if (math::length(v.tangent) != 1.0f)
@@ -134,8 +137,7 @@ MeshCPU generate_icosphere(int subdivisions) {
         v.uv = icosphere::position2uv(v.position);
         v.color = v3(0,0,0);
     }
-    
-    return MeshCPU(name, vertex_list, index_list);
+    return mesh;
 }
 
 MeshCPU generate_formatted_dot(Camera* camera, FormattedVertex vertex) {
@@ -149,7 +151,7 @@ MeshCPU generate_formatted_dot(Camera* camera, FormattedVertex vertex) {
     v3 b = math::normalize(math::cross(cam_vec, t));
 
     MeshCPU mesh_cpu;
-    mesh_cpu.file_path = name;
+    mesh_cpu.file_path = FilePath(name, true);
     
     for (int i = 0; i < 16; i++) {
         float angle1 = float(i) / 16.0f * math::TAU;
@@ -164,8 +166,6 @@ MeshCPU generate_formatted_dot(Camera* camera, FormattedVertex vertex) {
     return mesh_cpu;
 }
 MeshCPU generate_formatted_line(Camera* camera, vector<FormattedVertex> vertices) {
-    string name = fmt_("line_hash:{:#x}", hash_data(vertices.data(), vertices.bsize()));
-    
     if (!(vertices.size() >= 2))
         return {};
     struct Segment {
@@ -248,9 +248,8 @@ MeshCPU generate_formatted_line(Camera* camera, vector<FormattedVertex> vertices
         }
     }
 
-
     MeshCPU mesh_cpu;
-    mesh_cpu.file_path = name;
+    mesh_cpu.file_path = FilePath(fmt_("line_hash:{:#x}", hash_data(vertices.data(), vertices.bsize())), true);
     int quad_count = segments.size() - 1;
     mesh_cpu.vertices.reserve(quad_count * 6);
     mesh_cpu.indices.reserve(quad_count * 6);
@@ -286,44 +285,6 @@ void add_formatted_square(vector<FormattedVertex>& vertices, v3 center, v3 axis_
     vertices.emplace_back(center - axis_1 - axis_2, color, width);
     vertices.emplace_back(center - axis_2, color, width);
     vertices.emplace_back(center - axis_2, palette::clear);
-}
-
-
-Color palette_color(int palette, int x, int y, const PaletteCreateInfo& info) {
-    float hue = palette / float(info.palettes) * 360.0f + y * info.hue_shift_per_y;
-    float sat_x = math::clamp(float(x) / float(info.saturation_shifts), {0.0f, 1.0f});
-    float saturation = math::lerp(math::ease(sat_x, math::EaseMode_Quad), info.saturation_range);
-    float val_x = 1.0f - math::clamp(float(x - info.saturation_shifts) / float(info.value_shifts), {0.0f, 1.0f});
-    float value = math::lerp(math::ease(val_x, math::EaseMode_Quad), info.value_range);
-    return Color::hsl_oklab(hue / 360.f, saturation, value);
-}
-
-void generate_palette(const PaletteCreateInfo& info) {
-    TextureCPU out_texture;
-    int palettes_per_row = math::ceil_cast(math::sqrt(float(info.palettes)));
-    int palette_width = info.saturation_shifts + info.value_shifts + 1;
-
-    out_texture.size = {palettes_per_row * (palette_width + 1), palettes_per_row * (info.hue_shifts + 1)};
-    out_texture.pixels.internal.resize(out_texture.size.x * out_texture.size.y * 4, 0);
-    
-    for (int palette = 0; palette < info.palettes; palette++) {
-        int palette_x = palette % palettes_per_row;
-        int palette_y = palette / palettes_per_row;
-        
-        for (int x = 0; x < palette_width; x++) {
-            for (int y = 0; y < info.hue_shifts; y++) {
-                int pixel_x = palette_x * (palette_width + 1) + x;
-                int pixel_y = palette_y * (info.hue_shifts + 1) + y;
-                Color pixel_color = palette_color(palette, x, y, info);
-                out_texture.pixels[(pixel_x + pixel_y * out_texture.size.x) * 4 + 0] = uint8(math::clamp(pixel_color.r * 255.0f, 0.0f, 255.0f));
-                out_texture.pixels[(pixel_x + pixel_y * out_texture.size.x) * 4 + 1] = uint8(math::clamp(pixel_color.g * 255.0f, 0.0f, 255.0f));
-                out_texture.pixels[(pixel_x + pixel_y * out_texture.size.x) * 4 + 2] = uint8(math::clamp(pixel_color.b * 255.0f, 0.0f, 255.0f));
-                out_texture.pixels[(pixel_x + pixel_y * out_texture.size.x) * 4 + 3] = 255;
-            }
-        }
-    }
-    stbi_write_png_compression_level = 0;
-    stbi_write_png("resources/palette.png", out_texture.size.x, out_texture.size.y, 4, out_texture.pixels.data(), 0);
 }
 
 MeshCPU generate_formatted_3d_bitmask(Camera* camera, const Bitmask3D& bitmask) {
