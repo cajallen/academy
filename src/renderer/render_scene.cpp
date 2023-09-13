@@ -28,11 +28,7 @@ void RenderScene::setup(vuk::Allocator& allocator) {
     scene_data.sun_direction         = quat(0.2432103f, 0.3503661f, 0.0885213f, 0.9076734f);
     scene_data.sun_intensity         = 1.0f;
 
-    voxelization_camera.position = v3(-5.0f, 0.0f, 0.0f);
-    voxelization_camera.heading = euler{.yaw = 0.0f, .pitch = 0.0f};
-    voxelization_camera.view_dirty = true;
-    voxelization_camera.proj = math::orthographic(v3{10.0f, 10.0f, 10.0f});
-    voxelization_camera.proj_dirty = false;
+    voxelization_resolution = v3i(128);
 }
 
 void RenderScene::image(v2i size) {
@@ -78,8 +74,19 @@ void RenderScene::upload_buffer_objects(vuk::Allocator& allocator) {
     CameraData camera_data;
     camera_data.vp     = m44GPU(viewport.camera->vp);
 
-    CameraData voxelization_camera_data;
-    voxelization_camera_data.vp     = m44GPU(voxelization_camera.vp);
+    CameraData voxel_cam_data[3];
+    voxel_cam_data[0].vp     = m44GPU(
+        math::voxelization_mat(v3{5.0f, 5.0f, 5.0f}) *
+        math::look(-5.0f * v3::X, v3::X, v3::Z)
+    );
+    voxel_cam_data[1].vp     = m44GPU(
+        math::voxelization_mat(v3{5.0f, 5.0f, 5.0f}) *
+        math::look(-5.0f * v3::Y, v3::Y, v3::Z)
+    );
+    voxel_cam_data[2].vp     = m44GPU(
+        math::voxelization_mat(v3{5.0f, 5.0f, 5.0f}) *
+        math::look(-5.0f * v3::Z, v3::Z, v3::X)
+    );
 
     CameraData sun_camera_data;
     v3 sun_vec = math::normalize(math::rotate(scene_data.sun_direction, v3::Z));
@@ -88,22 +95,27 @@ void RenderScene::upload_buffer_objects(vuk::Allocator& allocator) {
     auto [pubo_camera, fubo_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&camera_data, 1));
     buffer_camera_data              = *pubo_camera;
 
-    auto [pubo_voxelization_camera, fubo_voxelization_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&voxelization_camera_data, 1));
+    auto [pubo_voxelization_camera, fubo_voxelization_camera] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(voxel_cam_data, 3));
     buffer_voxelization_camera = *pubo_voxelization_camera;
 
     struct CompositeData {
         m44GPU inverse_vp;
         v4 camera_position;
 
+        m44GPU voxelization_vp;
         m44GPU light_vp;
         v4 sun_data;
         v4 ambient;
+
+        int32 voxelization_lod = 0;
     } composite_data;
     composite_data.inverse_vp = m44GPU(math::inverse(viewport.camera->vp));
     composite_data.camera_position = v4(viewport.camera->position, 1.0f);
+    composite_data.voxelization_vp = voxel_cam_data[0].vp;
     composite_data.light_vp = sun_camera_data.vp;
     composite_data.sun_data = v4(sun_vec, 1.0f);
     composite_data.ambient = v4(scene_data.ambient);
+    composite_data.voxelization_lod = 0;
 
     auto [pubo_composite, fubo_composite] = vuk::create_buffer(allocator, vuk::MemoryUsage::eCPUtoGPU, vuk::DomainFlagBits::eTransferOnTransfer, std::span(&composite_data, 1));
     buffer_composite_data             = *pubo_composite;
@@ -238,12 +250,13 @@ void RenderScene::add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg) {
     rg->add_pass({
         .name = "voxelization",
         .resources = {
-            "voxelization_input"_image >> vuk::eFragmentWrite >> "voxelization"
+            "voxelization_input"_image >> vuk::eFragmentWrite >> "voxelization",
+            "fake_input"_image >> vuk::eColorWrite >> "fake_output"
         },
         .execute = [this](vuk::CommandBuffer& command_buffer) {
             command_buffer.set_dynamic_state(vuk::DynamicStateFlagBits::eViewport | vuk::DynamicStateFlagBits::eScissor)
-                    .set_viewport(0, vuk::Rect2D{.extent={64, 64}})
-                    .set_scissor(0, vuk::Rect2D{.extent={64, 64}})
+                    .set_viewport(0, vuk::Rect2D{.extent={uint32(voxelization_resolution.x), uint32(voxelization_resolution.y)}})
+                    .set_scissor(0, vuk::Rect2D{.extent={uint32(voxelization_resolution.x), uint32(voxelization_resolution.y)}})
                     .set_depth_stencil(vuk::PipelineDepthStencilStateCreateInfo {
                             .depthTestEnable  = false,
                             .depthWriteEnable = false
@@ -255,7 +268,8 @@ void RenderScene::add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                     .bind_buffer(0, CAMERA_BINDING, buffer_voxelization_camera)
                     .bind_buffer(0, MODEL_BINDING, buffer_model_mats);
 
-            command_buffer.bind_image(0, 8, "voxelization");
+            command_buffer.bind_image(0, 8, "voxelization_input");
+
 
             int item_index = 0;
             for (const auto& [mat_hash, mat_map] : renderables_built) {
@@ -268,7 +282,15 @@ void RenderScene::add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg) {
                     command_buffer
                             .bind_vertex_buffer(0, mesh->vertex_buffer.get(), 0, Vertex::get_format())
                             .bind_index_buffer(mesh->index_buffer.get(), vuk::IndexType::eUint32);
-                    command_buffer.draw_indexed(mesh->index_count, mesh_list.size(), 0, 0, item_index);
+
+
+                    for (uint32 i = 0; i < 3; i++) {
+                        struct PC { v4i res; uint32 pass; };
+                        PC pc {.res = v4i(voxelization_resolution, 0), .pass = i};
+                        command_buffer.push_constants(vuk::ShaderStageFlagBits::eVertex | vuk::ShaderStageFlagBits::eFragment, 0, pc);
+                        command_buffer.draw_indexed(mesh->index_count, mesh_list.size(), 0, 0, item_index);
+
+                    }
                     item_index += mesh_list.size();
                 }
             }
@@ -277,12 +299,20 @@ void RenderScene::add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg) {
 
     vuk::ImageAttachment voxelization_format = {
         .image_type = vuk::ImageType::e3D,
-        .extent = {.extent = {64, 64, 64}},
+        .extent = {.extent = {uint32(voxelization_resolution.x), uint32(voxelization_resolution.y), uint32(voxelization_resolution.z)}},
         .format = vuk::Format::eR16G16B16A16Sfloat,
         .sample_count = vuk::Samples::e1,
-        .view_type = vuk::ImageViewType::e3D
+        .view_type = vuk::ImageViewType::e3D,
+        .level_count = 6,
+        .layer_count = 1
+    };
+    vuk::ImageAttachment fake_format = {
+        .extent = {.extent = {uint32(voxelization_resolution.x), uint32(voxelization_resolution.y), 1}},
+        .format = vuk::Format::eR8G8B8A8Srgb,
+        .sample_count = vuk::Samples::e1
     };
     rg->attach_and_clear_image("voxelization_input", voxelization_format, vuk::ClearColor(0.0f, 0.0f, 0.0f, 0.0f));
+    rg->attach_and_clear_image("fake_input", fake_format, vuk::ClearColor(0.0f, 0.0f, 0.0f, 0.0f));
 }
 
 void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
@@ -290,8 +320,8 @@ void RenderScene::add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg) {
     rg->add_pass({
         .name = "forward",
         .resources = {
-            "base_color_input"_image >> vuk::eColorWrite     >> "base_color_output",
-            "emissive_input"_image >> vuk::eColorWrite     >> "emissive_output",
+            "base_color_input"_image >> vuk::eColorWrite  >> "base_color_output",
+            "emissive_input"_image >> vuk::eColorWrite    >> "emissive_output",
             "normal_input"_image  >> vuk::eColorWrite     >> "normal_output",
             "info_input"_image    >> vuk::eColorWrite     >> "info_output",
             "depth_input"_image   >> vuk::eDepthStencilRW >> "depth_output"
@@ -408,8 +438,8 @@ void RenderScene::add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg) {
             ZoneScoped;
             cmd.bind_compute_pipeline("postprocess");
 
-            auto sampler = Sampler().filter(Filter_Linear).get();
-            auto voxel_sampler = Sampler().filter(Filter_Nearest).get();
+            vuk::SamplerCreateInfo sampler = Sampler().filter(Filter_Linear).get();
+            vuk::SamplerCreateInfo voxel_sampler = Sampler().address(Address_Clamp).filter(Filter_Nearest).get();
             cmd.bind_image(0, 0, "base_color_output").bind_sampler(0, 0, sampler);
             cmd.bind_image(0, 1, "emissive_output").bind_sampler(0, 1, sampler);
             cmd.bind_image(0, 2, "normal_output").bind_sampler(0, 2, sampler);
@@ -421,8 +451,8 @@ void RenderScene::add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg) {
 
             cmd.bind_buffer(0, 8, buffer_composite_data);
             
-            auto target      = *cmd.get_resource_image_attachment("target_input");
-            auto target_size = target.extent.extent;
+            vuk::ImageAttachment target = *cmd.get_resource_image_attachment("target_input");
+            const vuk::Extent3D& target_size = target.extent.extent;
             cmd.specialize_constants(0, target_size.width);
             cmd.specialize_constants(1, target_size.height);
 

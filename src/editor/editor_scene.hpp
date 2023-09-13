@@ -14,7 +14,7 @@ struct EditorScene {
 
     virtual void setup() { scene->name = fmt_("{}::GameScene", name); scene->setup(); }
     virtual void update() { scene->update(); }
-    virtual void shutdown() { scene->shutdown(); }
+    virtual void shutdown() { scene->shutdown(); scene.reset(); }
 
     virtual void info_window(bool* open);
     virtual void output_window(bool* open);

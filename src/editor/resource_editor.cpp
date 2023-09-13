@@ -28,7 +28,7 @@ void ResourceEditor::setup() {
     controller.name = name + "::controller";
     controller.setup(&scene->render_scene.viewport, &scene->camera);
 
-    scene->camera.position = v3(0.0f, -16.0f, 3.9f);
+    scene->camera.position = v3(0.0f, -16.0f, 1.45f);
 
     scene->camera.fov = math::d2r(30.0f);
     scene->camera.heading = math::d2r(euler{.yaw = 90.0f, .pitch = -6.0f});
@@ -119,11 +119,13 @@ void ResourceEditor::info_window(bool* p_open) {
             ImGui::EndTabBar();
         }
 
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::TreeNode("Scene")) {
             if (ImGui::TreeNode("Camera")) {
                 inspect(&scene->camera);
                 ImGui::TreePop();
             }
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
             if (ImGui::TreeNode("Render Scene")) {
                 scene->render_scene.settings_gui();
                 ImGui::TreePop();

@@ -19,10 +19,12 @@ layout(constant_id = 1) const int target_height = 0;
 layout (binding = 8) uniform CompositeData {
     mat4 inverse_vp;
     vec4 camera_position;
-    
+
+    mat4 voxelization_vp;
     mat4 light_vp;
     vec4 sun_data;
     vec4 ambient;
+    int voxelization_lod;
 };
 
 layout(push_constant) uniform uPushConstant {
@@ -146,13 +148,86 @@ vec3 fog(vec3 color, float depth) {
 }
 
 vec3 trace_voxelization(InputRead data) {
-    vec4 origin_hpos = inverse_vp * vec4(data.uv.x, data.uv.y, 0.9999f, 1.0f);
-    vec4 end_hpos    = inverse_vp * vec4(data.uv.x, data.uv.y, 0.0001f, 1.0f);
+    vec4 origin_world_hpos = inverse_vp * vec4(data.uv.x, data.uv.y, 0.8f, 1.0f);
+    vec4 end_world_hpos    = inverse_vp * vec4(data.uv.x, data.uv.y, 0.1f, 1.0f);
 
-    vec3 origin      = origin_hpos.xyz / origin_hpos.w;
-    vec3 dir         = normalize(end_hpos.xyz / end_hpos.w - origin);
+    vec4 origin_voxelization_hpos = voxelization_vp * origin_world_hpos;
+    vec4 end_voxelization_hpos = voxelization_vp * end_world_hpos;
 
-    return texture(s_voxelization, origin + dir).rgb;
+    ivec3 voxel_resolution = textureSize(s_voxelization, voxelization_lod);
+
+    vec3 origin_texel_pos = vec3(
+        origin_voxelization_hpos.xy / origin_voxelization_hpos.w * 0.5 + vec2(0.5),
+        origin_voxelization_hpos.z / origin_voxelization_hpos.w
+    ) * voxel_resolution;
+
+    vec3 end_texel_pos = vec3(
+        end_voxelization_hpos.xy / end_voxelization_hpos.w * 0.5 + vec2(0.5),
+        end_voxelization_hpos.z / end_voxelization_hpos.w
+    ) * voxel_resolution;
+
+    vec3 dir = normalize(end_texel_pos - origin_texel_pos);
+
+    ivec3 step = ivec3(sign(dir));
+    vec3 delta_t = abs(vec3(1.0) / dir);
+
+    ivec3 current_voxel = ivec3(floor(origin_texel_pos));
+    vec3 open_cube = current_voxel;
+
+    float x_dist = step.x > 0 ? floor(origin_texel_pos.x + 1.0) - origin_texel_pos.x : ceil(origin_texel_pos.x - 1.0) - origin_texel_pos.x;
+    float y_dist = step.y > 0 ? floor(origin_texel_pos.y + 1.0) - origin_texel_pos.y : ceil(origin_texel_pos.y - 1.0) - origin_texel_pos.y;
+    float z_dist = step.z > 0 ? floor(origin_texel_pos.z + 1.0) - origin_texel_pos.z : ceil(origin_texel_pos.z - 1.0) - origin_texel_pos.z;
+    vec3 next_t = abs(vec3(delta_t.x * x_dist, delta_t.y * y_dist, delta_t.z * z_dist));
+    float t = 0.0f;
+
+    bool intersect_found = false;
+    vec3 intersect;
+    vec3 norm;
+    for (int loop_counter = 0; loop_counter < 500 && !isnan(t); loop_counter++) {
+
+        vec4 read = texelFetch(s_voxelization, current_voxel, voxelization_lod);
+        if (read.a > 0.1) {
+            intersect_found = true;
+            intersect = read.rgb;
+            break;
+        }
+
+        open_cube = current_voxel;
+
+        int min_axis = 0;
+        if (next_t[1] < next_t[0])
+            min_axis = 1;
+        if (next_t[2] < next_t[min_axis])
+            min_axis = 2;
+
+        current_voxel[min_axis] = current_voxel[min_axis] + step[min_axis];
+        t += next_t[min_axis];
+        next_t -= vec3(next_t[min_axis]);
+        next_t[min_axis] += delta_t[min_axis];
+
+        bool exit_loop = false;
+        for (int i = 0; i < 3; ++i) {
+            if (step[i] > 0) {
+                if (current_voxel[i] >= voxel_resolution[i])
+                    exit_loop = true;
+            }
+            else {
+                if (current_voxel[i] < 0)
+                    exit_loop = true;
+            }
+        }
+        if (exit_loop)
+            break;
+    }
+
+    if (intersect_found) {
+        vec3 norm = normalize(vec3(open_cube - current_voxel));
+        vec3 view = -dir;
+        float amount = 0.5 + 0.5 * dot(norm, view);
+        return amount * intersect;
+    } else {
+        return vec3(0.0);
+    }
 }
 
 layout (local_size_x = 8, local_size_y = 8) in;
@@ -190,7 +265,7 @@ void main() {
         case 4:
             imageStore(u_target, coord, vec4(linear_to_srgb(data.normal), 1.0));
             break;
-        case 5:
+        case 6:
             imageStore(u_target, coord, vec4(trace_voxelization(data), 1.0));
             break;
     }

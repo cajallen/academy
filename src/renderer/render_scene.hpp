@@ -79,7 +79,7 @@ struct RenderScene {
     };
     umap<mat_id, umap<mesh_id, vector<BuiltRenderable>>> renderables_built;
 
-    Camera voxelization_camera;
+    v3i voxelization_resolution;
 
     void update_size(v2i new_size);
     

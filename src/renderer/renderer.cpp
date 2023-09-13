@@ -47,7 +47,8 @@ Renderer::Renderer() : imgui_data() {
     vkb::PhysicalDeviceSelector selector{vkbinstance};
     VkPhysicalDeviceFeatures    vkfeatures{
         .independentBlend = VK_TRUE,
-        .samplerAnisotropy = VK_TRUE
+        .samplerAnisotropy = VK_TRUE,
+        .fragmentStoresAndAtomics = VK_TRUE
     };
     window  = create_window_glfw("Spellbook", window_size, true);
     surface = create_surface_glfw(vkbinstance.instance, window);
@@ -282,6 +283,7 @@ void Renderer::render() {
 }
 
 void Renderer::shutdown() {
+    get_gpu_asset_cache().clear();
     context->wait_idle();
     assert_else(scenes.empty());
     get_gpu_asset_cache().clear();

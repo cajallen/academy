@@ -10,7 +10,7 @@ layout (location = 3) in vec3 vin_color;
 layout (location = 4) in vec2 vin_uv;
 
 layout (binding = CAMERA_BINDING) uniform CameraData {
-	mat4 vp;
+	mat4 vp[3];
 };
 
 layout (binding = MODEL_BINDING) buffer readonly Model {
@@ -27,11 +27,15 @@ layout(location = 0) out VS_OUT {
     vec2 uv;
 } vout;
 
+layout(push_constant) uniform uPushConstant {
+    ivec4 resolution;
+    uint pass;
+} pc;
 
 void main() {
     vec4 h_position = model[gl_InstanceIndex] * vec4(vin_position, 1.0);
 	vout.position = h_position.xyz / h_position.w;
 	vout.color = vin_color;
     vout.uv = vin_uv;
-    gl_Position = vp * h_position;
+    gl_Position = vp[pc.pass] * h_position;
 }
