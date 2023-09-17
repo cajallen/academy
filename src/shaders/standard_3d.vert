@@ -11,6 +11,7 @@ layout (location = 4) in vec2 vin_uv;
 
 layout (binding = CAMERA_BINDING) uniform CameraData {
 	mat4 vp;
+	vec4 camera_normal;
 };
 
 layout (binding = MODEL_BINDING) buffer readonly Model {

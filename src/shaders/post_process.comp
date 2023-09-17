@@ -11,6 +11,7 @@ layout(binding = 3) uniform sampler2D s_depth;
 layout(binding = 4) uniform sampler2D s_widget;
 layout(binding = 5) uniform sampler2D s_widget_depth;
 layout(binding = 6) uniform sampler3D s_voxelization;
+layout(binding = 9) uniform sampler2D s_sun_depth;
 layout(binding = 7, rgba16f) uniform writeonly image2D u_target;
 
 layout(constant_id = 0) const int target_width	= 0;
@@ -29,6 +30,7 @@ layout (binding = 8) uniform CompositeData {
 
 layout(push_constant) uniform uPushConstant {
 	uint mode;
+    float voxel_size;
 	float time;
 } pc;
 
@@ -125,26 +127,82 @@ float max(vec2 v) {
     return max(v.x, v.y);
 }
 
-vec3 calculate_lighting(InputRead data, float amb_factor, float diff_factor) {
-    vec3 to_light = normalize(sun_data.xyz);
-    vec3 view_dir = normalize(data.position - camera_position.xyz);
-    vec3 reflection_dir = reflect(to_light, data.normal);
-    float NdotL = dot(data.normal, to_light);
-    float VdotR = dot(view_dir, reflection_dir);
-    float VdotN = dot(view_dir, data.normal);
-
-    float smoothness = clamp(1.0 - data.roughness, 0.001, 1.0);
-
-    vec3 ambient = data.color * ambient.rgb * ambient.a * amb_factor;
-    vec3 diffuse = data.color * clamp(NdotL, 0.0, 1.0) * diff_factor;
-    vec3 specular = vec3(0.0);
-
-    return (diffuse + specular) + ambient + data.emissive;
-}
-
 vec3 fog(vec3 color, float depth) {
     float x = 1.0 - exp(-(depth-4.0) / 300.0);
     return mix(color, vec3(0.4, 0.5, 0.6), x);
+}
+
+vec3 coneTrace(InputRead data, vec3 direction, float aperture)
+{
+    vec3 start = data.position + 1.5 * pc.voxel_size * data.normal;
+
+    vec4 Lv = vec4(0.0f);
+
+    float tanHalfAperture = tan(aperture / 2.0f);
+    float tanEighthAperture = tan(aperture / 8.0f);
+    float stepSizeCorrectionFactor = (1.0f + tanEighthAperture) / (1.0f - tanEighthAperture);
+    float _step = stepSizeCorrectionFactor * pc.voxel_size / 2.0f;
+
+    float dist = _step;
+
+    int i = 0;
+    for (i = 0; i < 50 && Lv.a < 0.9f; ++i)
+    {
+        vec3 position = start + dist * direction;
+        if (any(lessThan(position, -vec3(10.0))) || any(greaterThan(position, vec3(10.0))))
+            break;
+
+        vec4 voxelization_hpos = voxelization_vp * vec4(position, 1.0);
+        vec3 sample_pos = (voxelization_hpos.xyz / voxelization_hpos.w) * vec3(0.5, 0.5, 1.0) + vec3(0.5, 0.5, 0.0);
+
+        float diameter = 2.0f * tanHalfAperture * dist;
+        float mipLevel = log2(diameter / pc.voxel_size);
+        vec4 LvStep = 100.0f * _step * textureLod(s_voxelization, sample_pos, mipLevel);
+        if (LvStep.a > 0.0f)
+        {
+            //LvStep.rgb /= LvStep.a;
+            // Alpha blending
+            Lv.rgb += (1.0f - Lv.a) * LvStep.a * LvStep.rgb;
+            Lv.a += (1.0f - Lv.a) * LvStep.a;
+        }
+        dist += _step;
+    }
+
+    //imageStore(u_target, ivec2(gl_GlobalInvocationID.xy), vec4(linear_to_srgb(vec3(i / 50.0)), 1.0));
+
+    return Lv.rgb;
+}
+
+vec3 calcIndirectDiffuseLighting(InputRead data)
+{
+    vec3 T = normalize(cross(data.normal, vec3(0.0f, 1.0f, 0.0f)));
+    vec3 B = cross(T, data.normal);
+
+    vec3 Lo = vec3(0.0f);
+
+    float aperture = TAU / 6.0f;
+    vec3 direction = data.normal;
+    Lo += coneTrace(data, direction, aperture);
+    direction = 0.7071f * data.normal + 0.7071f * T;
+    Lo += coneTrace(data, direction, aperture);
+    // Rotate the tangent vector about the normal using the 5th roots of unity to obtain the subsequent diffuse cone directions
+    direction = 0.7071f * data.normal + 0.7071f * (0.309f * T + 0.951f * B);
+    Lo += coneTrace(data, direction, aperture);
+    direction = 0.7071f * data.normal + 0.7071f * (-0.809f * T + 0.588f * B);
+    Lo += coneTrace(data, direction, aperture);
+    direction = 0.7071f * data.normal - 0.7071f * (-0.809f * T - 0.588f * B);
+    Lo += coneTrace(data, direction, aperture);
+    direction = 0.7071f * data.normal - 0.7071f * (0.309f * T - 0.951f * B);
+    Lo += coneTrace(data, direction, aperture);
+
+    return Lo / 6.0f;
+}
+
+vec3 calcIndirectSpecularLighting(InputRead data)
+{
+    vec3 view_dir = normalize(data.position - camera_position.xyz);
+    vec3 refl = normalize(view_dir - 2.0 * dot(view_dir, data.normal) * data.normal);
+    return coneTrace(data, refl, TAU / 20.0f);
 }
 
 vec3 trace_voxelization(InputRead data) {
@@ -230,6 +288,43 @@ vec3 trace_voxelization(InputRead data) {
     }
 }
 
+float shaded(InputRead data) {
+    vec4 h_position_lightspace = light_vp * vec4(data.position, 1.0);
+    vec3 position_lightspace = h_position_lightspace.xyz / h_position_lightspace.w;
+    vec2 uv = position_lightspace.xy * 0.5 + vec2(0.5);
+
+    const float maxBias = 0.01;
+    float b = length(1.0 / textureSize(s_sun_depth, 0));
+    float bias = maxBias;
+
+    if (uv.x < 0.0 || uv.x >= 1.0 || uv.y < 0.0 || uv.y >= 1.0 || position_lightspace.z < 0.01)
+    return 1.0;
+
+    float world_read_depth = texture(s_sun_depth, uv).r;
+    bias = min(bias, maxBias) + 0.001f * (1.0f - world_read_depth);
+    float world_position_depth = position_lightspace.z + bias;
+
+    float shaded_amount = world_position_depth < world_read_depth ? 0.0 : 1.0;
+    return shaded_amount;
+}
+
+vec3 calculate_lighting(InputRead data, float amb_factor, float diff_factor) {
+    vec3 to_light = normalize(sun_data.xyz);
+    vec3 view_dir = normalize(data.position - camera_position.xyz);
+    vec3 reflection_dir = reflect(to_light, data.normal);
+    float NdotL = dot(data.normal, to_light);
+    float VdotR = dot(view_dir, reflection_dir);
+    float VdotN = dot(view_dir, data.normal);
+
+    float smoothness = clamp(1.0 - data.roughness, 0.001, 1.0);
+
+    vec3 ambient = 0.0 * data.color * ambient.rgb * ambient.a * amb_factor;
+    vec3 diffuse = shaded(data) * data.color * clamp(NdotL, 0.0, 1.0) * diff_factor + data.color * calcIndirectDiffuseLighting(data);
+    vec3 specular = 0.0 * shaded(data) + 0.1 * calcIndirectSpecularLighting(data);
+
+    return (diffuse + specular) + ambient + data.emissive;
+}
+
 layout (local_size_x = 8, local_size_y = 8) in;
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
@@ -265,6 +360,11 @@ void main() {
         case 4:
             imageStore(u_target, coord, vec4(linear_to_srgb(data.normal), 1.0));
             break;
+        case 5:
+            vec3 view_dir = normalize(data.position - camera_position.xyz);
+            vec3 test = view_dir - 2.0 * dot(view_dir, data.normal) * data.normal;
+            imageStore(u_target, coord, vec4(test, 1.0));
+            break;;
         case 6:
             imageStore(u_target, coord, vec4(trace_voxelization(data), 1.0));
             break;

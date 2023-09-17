@@ -23,6 +23,7 @@ out gl_PerVertex {
 
 layout(location = 0) out VS_OUT {
     vec3 position;
+    vec3 normal;
     vec3 color;
     vec2 uv;
 } vout;
@@ -33,8 +34,11 @@ layout(push_constant) uniform uPushConstant {
 } pc;
 
 void main() {
+    mat3 N = transpose(inverse(mat3(model[gl_InstanceIndex])));
+
     vec4 h_position = model[gl_InstanceIndex] * vec4(vin_position, 1.0);
 	vout.position = h_position.xyz / h_position.w;
+    vout.normal = normalize(N * vin_normal);
 	vout.color = vin_color;
     vout.uv = vin_uv;
     gl_Position = vp[pc.pass] * h_position;

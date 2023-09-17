@@ -8,6 +8,7 @@
 
 #include "general/string.hpp"
 #include "general/color.hpp"
+#include "general/memory.hpp"
 #include "general/math/geometry.hpp"
 #include "general/math/quaternion.hpp"
 
@@ -45,6 +46,7 @@ struct SceneData {
 
 struct PostProcessData {
     DebugDrawMode debug_mode = DebugDrawMode_Lit;
+    float voxel_size;
     float time;
 };
 
@@ -69,6 +71,7 @@ struct RenderScene {
 
     vuk::Buffer buffer_camera_data;
     vuk::Buffer buffer_voxelization_camera;
+    vuk::Buffer buffer_sun_camera_data;
     vuk::Buffer buffer_composite_data;
     vuk::Buffer buffer_model_mats;
     vuk::Buffer buffer_ids;
@@ -100,18 +103,22 @@ struct RenderScene {
     Renderable& quick_renderable(uint64 mesh_id, uint64 mat_id, bool frame_allocated);
     Renderable& quick_renderable(uint64 mesh_id, const MaterialCPU& mat_id, bool frame_allocated);
 
-    void add_voxelization_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_forward_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_widget_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_postprocess_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_info_read_pass(std::shared_ptr<vuk::RenderGraph> rg);
-    void add_emitter_update_pass(std::shared_ptr<vuk::RenderGraph> rg);
+    void add_sundepth_pass(shared_ptr<vuk::RenderGraph> rg);
+    void add_voxelization_pass(shared_ptr<vuk::RenderGraph> rg);
+    void add_forward_pass(shared_ptr<vuk::RenderGraph> rg);
+    void add_widget_pass(shared_ptr<vuk::RenderGraph> rg);
+    void add_postprocess_pass(shared_ptr<vuk::RenderGraph> rg);
+    void add_info_read_pass(shared_ptr<vuk::RenderGraph> rg);
+    void add_emitter_update_pass(shared_ptr<vuk::RenderGraph> rg);
 
     void prune_emitters();
 
     void upload_buffer_objects(vuk::Allocator& frame_allocator);
     void setup_renderables_for_passes(vuk::Allocator& allocator);
     void clear_frame_allocated_renderables();
+
+    void generate_mips(shared_ptr<vuk::RenderGraph> rg, string_view input_name, string_view output_name, uint32 mip_count);
 };
+
 
 }
